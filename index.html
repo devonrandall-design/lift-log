@@ -239,7 +239,8 @@ const ICON={
 };
 const EQUIP=[["barbell","Barbell"],["dumbbell","Dumbbell"],["machine","Machine"],["cable","Cable"],["smith","Smith"],["bodyweight","Bodyweight"]];
 const EQ=Object.fromEntries(EQUIP);
-const LOADS={total:["Total weight","stack / bar"],side:["Per side","plate-loaded"],each:["Each arm / leg","per dumbbell or limb"]};
+/* "side" is kept only so older exercises still read; new ones log the total */
+const LOADS={total:["Whole weight","bar, stack, or plates on both sides: the app adds it up"],each:["One arm / leg at a time","dumbbells or single-limb work: log one side"]};
 const BRANDED={machine:1,cable:1,smith:1};
 
 /* ---------- seed ---------- */
@@ -310,7 +311,7 @@ function effortText(left,user){
 }
 function exLabel(ex){return [EQ[ex.equip],ex.brand].filter(Boolean).join(" · ")}
 function exFull(ex){return ex.name+" · "+exLabel(ex)}
-function varLbl(ex){return exLabel(ex)+(ex.load==="side"?" · per side":ex.load==="each"?" · each side":"")+(ex.unit==="kg"&&S.units!=="kg"?" · kg plates":ex.unit==="lbs"&&S.units==="kg"?" · lb plates":"")}
+function varLbl(ex){return exLabel(ex)+(ex.load==="each"?" · each side":"")+(ex.unit==="kg"&&S.units!=="kg"?" · kg plates":ex.unit==="lbs"&&S.units==="kg"?" · lb plates":"")}
 /* duplicate guard: "Hip-thrust", "hip thrusts" and "Hip Thrust" are one movement; brands match ignoring case and spacing */
 function normName(s){let n=String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");n=n.replace(/(ss|sh|ch|x)es$/,"$1");if(/[^s]s$/.test(n))n=n.slice(0,-1);return n}
 const normBrand=s=>String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
@@ -324,8 +325,8 @@ const PL_COL=["var(--coral)","var(--gold)","var(--mint)","var(--blue)","var(--mu
 const plateSet=ex=>unitOf(ex)==="kg"?PL_KG:PL_LB;
 /* plate-loaded: barbells, Smith, per-side machines, and any machine marked as using plates (pendulum, hack, leg press…) */
 const plateable=ex=>ex.plates!==false&&(ex.equip==="barbell"||ex.equip==="smith"||ex.load==="side"||ex.plates===true||!!ex.pmode);
-const pmode=ex=>ex.pmode||(ex.equip==="barbell"||ex.equip==="smith"?"both":"side");
-function pbaseD(ex){if(pmode(ex)==="side")return 0;if(ex.base!=null)return toDisp(ex.base,ex);return ex.equip==="barbell"?(unitOf(ex)==="kg"?20:45):0}
+const pmode=ex=>ex.pmode==="one"?"one":"both"; // what you log is always the total on the machine
+function pbaseD(ex){if(ex.base!=null)return toDisp(ex.base,ex);return ex.equip==="barbell"?(unitOf(ex)==="kg"?20:45):0}
 const pmult=ex=>pmode(ex)==="both"?2:1;
 function plateTotal(ex,plates){return Math.round((pbaseD(ex)+pmult(ex)*plates.reduce((a,b)=>a+b,0))*100)/100}
 function platesFor(ex,totalD){
@@ -840,9 +841,9 @@ function renderSheet(){
         <span class="pl-collar" aria-hidden="true"></span>
         ${sorted.map(({w,i})=>{const ci=set.findIndex(x=>x[0]===w);return `<button class="pl-plate" data-a="plRm" data-i="${i}" aria-label="Remove ${w} ${u} plate" style="height:${34+Math.round(w/maxW*86)}px;width:${w>=maxW*0.5?18:w>=maxW*0.2?14:10}px;background:${PL_COL[ci]}"></button>`}).join("")}
         <span class="pl-sleeve" aria-hidden="true"></span>
-        <span class="small faint" style="position:absolute;right:10px;bottom:8px">${m==="both"?"× both sides":m==="side"?"one side shown":"one sleeve"}</span>
+        <span class="small faint" style="position:absolute;right:10px;bottom:8px">${m==="both"?"same on the other side":"one sleeve"}</span>
       </div>
-      <div class="between" style="align-items:flex-end"><div><div class="num" style="font-size:40px;font-weight:700;line-height:1">${+total}<span class="small muted" style="font-weight:500"> ${u}${m==="side"?" per side":""}</span></div>
+      <div class="between" style="align-items:flex-end"><div><div class="eyebrow" style="margin-bottom:4px">Total on the machine</div><div class="num" style="font-size:40px;font-weight:700;line-height:1">${+total}<span class="small muted" style="font-weight:500"> ${u}${m==="side"?" per side":""}</span></div>
         <div class="small muted" style="margin-top:4px">${sh?(m==="both"?"Each side: ":m==="side"?"Per side: ":"On the sleeve: ")+esc(sh):"Tap plates below to add them"}</div></div>
         ${P.plates.length?`<button class="chip" data-a="plClear">Clear</button>`:""}</div>
       <div class="pl-grid">${set.map(([w,l],ci)=>`<button class="pl-btn" data-a="plAdd" data-w="${w}" aria-label="Add ${w} ${u} plate"><span class="pl-dot" style="background:${PL_COL[ci]}" aria-hidden="true"></span><span class="num" style="font-weight:700">${w}</span>${l&&plateStyle()==="letters"?`<span class="faint small">${l}</span>`:""}</button>`).join("")}</div>
@@ -850,7 +851,7 @@ function renderSheet(){
       <label class="stack" style="gap:6px"><span class="eyebrow">Or type a target</span><input class="field" id="pl-target" inputmode="decimal" data-in="pltarget" placeholder="e.g. 275 → shows what to load" value="${esc(P.target||"")}" style="font-size:16px;height:46px"></label>
       ${P.miss?`<div class="small" style="color:var(--coral-fg)">${esc(P.miss)}</div>`:""}
       <details class="pl-more"><summary>Bar &amp; loading</summary><div class="stack" style="gap:10px;margin-top:10px">
-        <div class="seg" role="group" aria-label="How this machine is loaded">${[["both","Both sides"],["side","Log per side"],["one","One sleeve"]].map(([k,l])=>`<button aria-pressed="${m===k}" data-a="plMode" data-v="${k}">${l}</button>`).join("")}</div>
+        <div class="seg" role="group" aria-label="How this machine is loaded">${[["both","Plates on both sides"],["one","One sleeve (T-bar, landmine)"]].map(([k,l])=>`<button aria-pressed="${m===k}" data-a="plMode" data-v="${k}">${l}</button>`).join("")}</div>
         ${m!=="side"?`<label class="row" style="justify-content:space-between"><span class="small">${ex.equip==="barbell"?"Bar weighs":"Starts at (empty)"}</span><input class="field" id="pl-base" inputmode="decimal" data-in="plbase" value="${pbaseD(ex)}" style="width:110px;height:44px;font-size:16px;text-align:center"></label>`:""}
         <div class="small faint">Saved for this ${esc(varLbl(ex))} only.</div></div></details>
       <button class="btn btn-coral btn-block" data-a="plDone">Use ${+total} ${u}</button>`,"Plate calculator");
