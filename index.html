@@ -108,6 +108,16 @@ h2.lbl{margin:0;font-size:12px;letter-spacing:.09em;text-transform:uppercase;col
 .toast button{margin-left:12px;background:transparent;border:0;color:var(--coral-text);font-weight:800;padding:4px 2px}
 .toast{display:flex;align-items:center}
 .toast[hidden]{display:none}
+.when-field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.when-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.when-field .field{height:52px;font-size:17px;padding:0 14px;min-width:0;width:100%;max-width:100%;display:block}
+.when-field input[type=date],.when-field input[type=time]{-webkit-appearance:none;appearance:none;line-height:52px;text-align:left}
+.when-field input::-webkit-date-and-time-value{text-align:left;margin:0}
+.dur-wrap{position:relative;display:block}
+.dur-wrap .field{padding-right:48px}
+.dur-unit{position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--faint);font-size:15px;pointer-events:none}
+.dur-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.dur-grid .optbtn{height:40px;padding:0}
 .when-chip{align-self:flex-start;display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:0 12px;border-radius:18px;border:1px solid var(--line);background:var(--surface);color:var(--muted);font-size:14px;font-weight:600}
 .when-chip svg{color:var(--coral-text)}
 .plate-hint{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:0 0 2px 58px;padding:5px 6px 5px 12px;background:var(--surface2);border-radius:10px;font-size:13px;color:var(--muted);animation:up .15s ease-out}
@@ -433,10 +443,9 @@ function renderActive(){
   const A=S.active;const pr=prMap();
   const E=!!A.editOf;
   let h=E?`<div class="top sticky"><button class="chip" style="height:44px;border:0;background:transparent;color:var(--coral-text);padding:0 4px" data-a="cancelEdit">Cancel</button>
-    <span class="eyebrow">Editing</span>
     <div class="row"><button class="add-ex" data-a="openPicker" data-target="active">+ Exercise</button>
     <button class="btn btn-coral" data-a="saveEdit" style="height:44px;padding:0 16px">Save</button></div></div>
-    <div style="margin-bottom:16px;display:flex;flex-direction:column;gap:8px"><label class="title-edit"><span class="sr">Workout name</span><input id="wname" data-in="wname" value="${esc(A.name)}" autocomplete="off" enterkeyhint="done">${ICON.pen}</label>
+    <div style="margin-bottom:16px;display:flex;flex-direction:column;gap:6px"><div class="eyebrow">Editing workout</div><label class="title-edit"><span class="sr">Workout name</span><input id="wname" data-in="wname" value="${esc(A.name)}" autocomplete="off" enterkeyhint="done">${ICON.pen}</label>
     <button class="when-chip" data-a="openWhen" aria-label="Change date and time: ${esc(whenText(A))}">${ICON.cal}<span>${esc(whenText(A))}</span></button></div><div class="stack">`
   :`<div class="top sticky"><div class="row"><button class="icon-btn" data-a="openFinish" aria-label="Workout options">${ICON.x}</button>
     <div class="num muted" id="elapsed">${mmss((Date.now()-A.start)/1000)}</div></div>
@@ -863,10 +872,10 @@ function renderSheet(){
   }else if(k==="when"){
     const A=S.active;const pad=n=>String(n).padStart(2,"0");const sd=new Date(A.start);
     h=sheetWrap(`<h2 style="margin:0;font-size:22px">When was this?</h2>
-      <label class="stack" style="gap:6px"><span class="eyebrow">Date</span><input class="field" id="e-date" type="date" data-in="edate" value="${sd.getFullYear()}-${pad(sd.getMonth()+1)}-${pad(sd.getDate())}" max="${(t=>t.getFullYear()+"-"+pad(t.getMonth()+1)+"-"+pad(t.getDate()))(new Date())}"></label>
-      <div class="grid2"><label class="stack" style="gap:6px"><span class="eyebrow">Started</span><input class="field" id="e-time" type="time" data-in="etime" value="${pad(sd.getHours())}:${pad(sd.getMinutes())}"></label>
-      <label class="stack" style="gap:6px"><span class="eyebrow">Length (min)</span><input class="field" id="e-dur" inputmode="numeric" data-in="edur" value="${A.durMin||""}" style="text-align:center"></label></div>
-      <div class="chips" role="group" aria-label="Quick length">${[30,45,60,75,90].map(m=>`<button class="chip" aria-pressed="${+A.durMin===m}" data-a="setDur" data-v="${m}">${m} min</button>`).join("")}</div>
+      <label class="when-field"><span class="eyebrow">Date</span><input class="field" id="e-date" type="date" data-in="edate" value="${sd.getFullYear()}-${pad(sd.getMonth()+1)}-${pad(sd.getDate())}" max="${(t=>t.getFullYear()+"-"+pad(t.getMonth()+1)+"-"+pad(t.getDate()))(new Date())}"></label>
+      <div class="when-grid"><label class="when-field"><span class="eyebrow">Started</span><input class="field" id="e-time" type="time" data-in="etime" value="${pad(sd.getHours())}:${pad(sd.getMinutes())}"></label>
+      <label class="when-field"><span class="eyebrow">Length</span><span class="dur-wrap"><input class="field" id="e-dur" inputmode="numeric" data-in="edur" value="${A.durMin||""}" placeholder="60"><span class="dur-unit" aria-hidden="true">min</span></span></label></div>
+      <div class="dur-grid" role="group" aria-label="Quick length in minutes">${[30,45,60,75,90].map(m=>`<button class="optbtn" aria-pressed="${+A.durMin===m}" data-a="setDur" data-v="${m}" aria-label="${m} minutes">${m}</button>`).join("")}</div>
       <button class="btn btn-coral btn-block" data-a="closeSheet">Done</button>`,"Date and time");
   }else if(k==="exmenu"){
     const i=ui.menuE;const en=S.active.entries[i];const ex=exById(en.exId);const n=S.active.entries.length;const done=en.sets.filter(s=>s.done).length;
