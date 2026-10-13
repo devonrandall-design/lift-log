@@ -160,6 +160,17 @@ mark{background:var(--gold-bg);color:var(--gold-text);border-radius:3px;padding:
 .done .sin{border-color:transparent;background:transparent;color:var(--muted)}
 .stype{height:44px;border-radius:10px;border:0;background:transparent;font-weight:800;font-size:14px;color:var(--fg)}
 .stype.t-H{color:var(--mint-text);font-size:11px}
+.avatar{position:relative;overflow:visible;padding:0}
+.avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block}
+.avatar.has-photo{background:var(--surface2)!important}
+.on-dot{position:absolute;right:-1px;bottom:-1px;width:11px;height:11px;border-radius:50%;background:#2BC07F;box-shadow:0 0 0 2px var(--bg)}
+.avatar:not(.av-sm) .on-dot{width:13px;height:13px}
+.av-lg{width:72px;height:72px;border-radius:36px;font-size:28px}
+.av-edit{position:absolute;right:-2px;bottom:-2px;width:26px;height:26px;border-radius:13px;background:var(--surface);border:1px solid var(--line2);color:var(--fg);display:flex;align-items:center;justify-content:center}
+.av-edit svg{width:13px;height:13px}
+.crop-wrap{display:flex;justify-content:center}
+.crop{position:relative;width:240px;height:240px;border-radius:50%;overflow:hidden;background:var(--surface2);touch-action:none;cursor:grab;box-shadow:0 0 0 3px var(--coral)}
+.crop img{position:absolute;max-width:none;user-select:none;-webkit-user-select:none;pointer-events:none}
 .sgrid.hold{background:var(--mint-bg);border-radius:12px;margin-inline:-6px;padding:4px 6px}
 .secw{position:relative;display:block}
 .secw .sin{padding-right:30px;border-color:var(--mint)}
@@ -421,7 +432,13 @@ function prMap(){
   return {map,sess};
 }
 function hl(text,q){const t=esc(text);if(!q)return t;const rq=esc(q).replace(/[.*+?^${}()|[\]\\]/g,"\\$&");return t.replace(new RegExp("("+rq+")","ig"),"<mark>$1</mark>")}
-function av(user,small){const u=U(user);return `<span class="avatar ${small?"av-sm":""}" aria-hidden="true" style="background:${u.color}">${esc(u.initial)}</span>`}
+function photoOf(user){return user==="p"?P.photo:U(user).photo}
+function partnerOnline(){return !!(P.on&&P.lastSeen&&Date.now()-Date.parse(P.lastSeen)<150000)}
+function avInner(user){const u=U(user);const ph=photoOf(user);return ph?`<img src="${ph}" alt="">`:esc(u.initial)}
+function av(user,small){const u=U(user);const dot=user==="p"&&partnerOnline();
+  return `<span class="avatar ${small?"av-sm":""} ${photoOf(user)?"has-photo":""}" aria-hidden="true" style="background:${u.color}">${avInner(user)}${dot?`<span class="on-dot"></span>`:""}</span>`}
+function lastSeenText(){if(!P.lastSeen)return "";const m=Math.round((Date.now()-Date.parse(P.lastSeen))/60000);
+  if(partnerOnline())return "Online now";if(m<60)return "Active "+m+" min ago";if(m<1440)return "Active "+Math.round(m/60)+" hr ago";return "Active "+ago(Date.parse(P.lastSeen))}
 function fmtSet(s,user,ex){if(isHold(s))return `<span class="num">${wr(s,ex)}</span>`;const ef=effortText(s.left,user);return `<span class="num">${fw(s.w,ex)}${ex&&ex.unit?`<span class="small faint"> ${uLbl(ex)}</span>`:""} × ${s.r}</span>${ef?` <span class="small muted">· ${esc(ef)}</span>`:""}`}
 function toast(msg,act){const t=$("#toast");t.textContent=msg;
   if(act){const b=document.createElement("button");b.textContent=act.label;b.dataset.a=act.a;t.appendChild(b)}
@@ -432,7 +449,7 @@ const mmss=sec=>{sec=Math.max(0,Math.round(sec));return Math.floor(sec/60)+":"+S
 function topbar(title,eyebrow,left){
   const me=U(S.me);
   return `<div class="top"><div class="row">${left||""}<div>${eyebrow?`<div class="eyebrow">${esc(eyebrow)}</div>`:""}<h1>${esc(title)}</h1></div></div>
-  <button class="avatar" data-a="openSettings" aria-label="Settings. Logging as ${esc(me.name)}" style="background:${me.color}">${esc(me.initial)}</button></div>`;
+  <button class="avatar ${me.photo?"has-photo":""}" data-a="openSettings" aria-label="Settings. Logging as ${esc(me.name)}" style="background:${me.color}">${avInner(S.me)}</button></div>`;
 }
 
 /* ---------- workout tab ---------- */
@@ -772,7 +789,7 @@ function partnerSection(){
   if(!sb||!SY.user)return "";
   const r=ui.pair;const err=r.err?`<div class="small" role="alert" style="color:var(--coral-fg)">${esc(r.err)}</div>`:"";
   let body;
-  if(P.on)body=`<div class="row" style="gap:12px">${av("p",true)}<div style="min-width:0"><div style="font-weight:700">Paired with ${esc(P.name)}</div><div class="small muted" style="overflow-wrap:anywhere">${esc(P.email)}</div></div></div>
+  if(P.on)body=`<div class="row" style="gap:12px">${av("p",true)}<div style="min-width:0"><div style="font-weight:700">Paired with ${esc(P.name)}</div><div class="small ${partnerOnline()?"good":"muted"}" style="overflow-wrap:anywhere">${P.lastSeen?esc(lastSeenText()):esc(P.email)}</div></div></div>
     <div class="small muted">You can see each other's workouts in History, search and exercise charts. Neither of you can change the other's.</div>
     <button class="btn btn-ghost btn-block" data-a="pairUnpair">${ui.confirmUnpair?"Tap again to unpair":"Unpair"}</button>`;
   else if(P.incoming)body=`<div style="font-weight:800;font-size:17px">${esc(P.incoming.inviter_name||P.incoming.inviter_email)} wants to share workouts</div>
@@ -804,12 +821,19 @@ function renderOnboard(){
 function renderSettings(){
   const me=U(S.me);
   return topbar("Settings")+`<div class="stack" style="gap:20px">
+    <section class="row" style="gap:16px">
+      <button class="avatar av-lg ${me.photo?"has-photo":""}" data-a="photoPick" aria-label="${me.photo?"Change profile photo":"Add profile photo"}" style="background:${me.color}">${avInner(S.me)}<span class="av-edit" aria-hidden="true">${ICON.pen}</span></button>
+      <div class="stack" style="gap:8px;min-width:0"><div style="font-weight:800;font-size:19px;overflow-wrap:anywhere">${esc(me.name)}</div>
+        <div class="row" style="gap:6px;flex-wrap:wrap"><button class="chip" data-a="photoPick">${me.photo?"Change photo":"Add photo"}</button>${me.photo?`<button class="chip" data-a="photoRemove">Remove</button>`:""}</div></div>
+      <input type="file" id="photo-file" accept="image/*" data-in="photofile" class="sr" tabindex="-1" aria-hidden="true">
+    </section>
     <section class="stack"><h2 class="lbl">Look for ${esc(me.name)}</h2>
       <div class="grid2">${themeCard("light","Light","#FBF6F1","#FFFFFF","#EADFD6","#2A1F1A")}${themeCard("dark","Dark","#15110F","#211A17","#352A25","#F7F1EA")}</div>
       <button class="loadopt" aria-pressed="${(me.theme||"system")==="system"}" data-a="setTheme" data-v="system"><span>Match my phone</span><span>switches with your phone's setting</span></button>
       </section>
     ${syncSection()}
     ${partnerSection()}
+    ${sb&&SY.user&&P.on?`<label class="switch card" style="padding:10px 14px;gap:12px"><span><span style="font-weight:700;display:block">Show ${esc(P.name)} when I'm online</span><span class="small muted">A green dot on your photo while you have the app open</span></span><input type="checkbox" id="f-online" data-in="showonline" ${me.showOnline===false?"":"checked"}></label>`:""}
     <section class="stack"><h2 class="lbl">Your data</h2>
       <div class="card stack" style="gap:10px"><div class="small muted">${SY.user?"Sync already keeps a copy in your account. A backup file is an extra copy you control.":"Without sync, your workouts live on this phone only. Back up every week or so, and keep the file somewhere safe like iCloud Drive."}</div>
         <div class="small" style="font-weight:600">${S.lastBackup?`Last backup file: ${ago(S.lastBackup)}`:"No backup file yet"} · ${S.sessions.filter(s=>s.user===S.me).length} workouts logged</div>
@@ -900,6 +924,13 @@ function renderSheet(){
         <div class="small muted" style="margin:4px 0 10px">${esc(exFull(dup))}. Using it keeps all its history in one place.</div>
         <button class="btn btn-coral btn-block" data-a="pickEx" data-id="${dup.id}">Use ${esc(dup.name)} · ${esc(varLbl(dup))}</button></div>`
       :`<button class="btn btn-coral btn-block" data-a="saveEx">${ui.picker.target==="variant"?"Use this version":ui.picker.target==="active"?"Add to workout":"Add to template"}</button>`}`,"New exercise");
+  }else if(k==="photo"){
+    const c=ui.crop;
+    h=sheetWrap(`<h2 style="margin:0;font-size:22px">Your photo</h2>
+      <div class="crop-wrap"><div class="crop" id="crop"><img id="crop-img" src="${c.src}" alt="" draggable="false" style="${cropStyle()}"></div></div>
+      <div class="small faint" style="text-align:center;margin-top:-6px">Drag to position</div>
+      <label class="row" style="gap:12px"><span class="small muted">Zoom</span><input type="range" id="crop-zoom" min="1" max="4" step="0.01" value="${c.z}" data-in="cropzoom" style="flex:1;accent-color:var(--coral)"></label>
+      <button class="btn btn-coral btn-block" data-a="photoSave">Save photo</button>`,"Profile photo");
   }else if(k==="stype"){
     const c=ui.stCtx;const st=S.active.entries[c.e].sets[c.s];
     h=sheetWrap(`<h2 style="margin:0;font-size:22px">Set type</h2><div class="stack" style="gap:6px">${[["N","Normal","a regular working set"],["W","Warmup","doesn't count toward records"],["D","Drop set","weight drops right after"],["A","AMRAP","as many reps as possible"],["H","Hold","timed in seconds, like a static hold"]].map(([k,l,dd])=>`<button class="loadopt" aria-pressed="${st.type===k}" data-a="setType" data-v="${k}"><span>${l}</span><span>${dd}</span></button>`).join("")}</div>`,"Set type");
@@ -1132,6 +1163,13 @@ const ACT={
   undoDelete:()=>{const g=ui.undoDel;if(!g)return;S.sessions.push(g);S.sessions.sort((a,b)=>a.date-b.date);S.deleted=(S.deleted||[]).filter(x=>x!==g.id);ui.undoDel=null;$("#toast").hidden=true;toast("Workout restored")},
   openWhen:()=>{ui.sheet="when"},
   setDur:d=>{S.active.durMin=+d.v},
+  photoPick:()=>{const f=$("#photo-file");if(f)f.click();return false},
+  photoRemove:()=>{delete U(S.me).photo;toast("Photo removed")},
+  photoSave:()=>{const c=ui.crop;const out=document.createElement("canvas");out.width=out.height=192;const g=out.getContext("2d");
+    const k=192/CROP;const sc=c.base*c.z*k;g.fillStyle="#fff";g.fillRect(0,0,192,192);
+    g.drawImage(c.img,(CROP/2+c.x)*k-c.w*sc/2,(CROP/2+c.y)*k-c.h*sc/2,c.w*sc,c.h*sc);
+    let url=out.toDataURL("image/jpeg",0.82);if(url.length>90000)url=out.toDataURL("image/jpeg",0.6);
+    U(S.me).photo=url;ui.sheet=null;ui.crop=null;toast("Photo saved")},
   exMenu:d=>{ui.menuE=+d.e;ui.sheet="exmenu"},
   exMove:d=>{const a=S.active.entries;const i=ui.menuE,j=i+(+d.d);if(j<0||j>=a.length)return;[a[i],a[j]]=[a[j],a[i]];ui.sheet=null;
     setTimeout(()=>{const s=document.getElementById("ex-"+j);s&&s.scrollIntoView({block:"start"})},30)},
@@ -1208,6 +1246,7 @@ document.addEventListener("input",ev=>{
     save();return}
   if(k==="note"){S.active.entries[el.dataset.e].note=el.value;save();return}
   if(k==="auth"){ui.auth[el.dataset.k]=el.value;return}
+  if(k==="cropzoom"){ui.crop.z=+el.value;clampCrop();const im=$("#crop-img");if(im)im.setAttribute("style",cropStyle());return}
   if(k==="pinv"){ui.pair.email=el.value;return}
   if(k==="edate"||k==="etime"){const A=S.active;const d=new Date(A.start);
     if(k==="edate"&&/^\d{4}-\d{2}-\d{2}$/.test(el.value)){const [y,m,dd]=el.value.split("-").map(Number);d.setFullYear(y,m-1,dd)}
@@ -1249,6 +1288,15 @@ document.addEventListener("focusout",ev=>{
   setTimeout(()=>{const h=$("#plate-hint");const a=document.activeElement;if(!h)return;if(a&&(a.id===h.dataset.for||h.contains(a)))return;h.remove()},250);
 });
 document.addEventListener("change",ev=>{const el=ev.target;
+  if(el.dataset.in==="showonline"){U(S.me).showOnline=el.checked;save();if(el.checked)heartbeat();else if(sb&&SY.user)sb.from("presence").delete().eq("user_id",SY.user.id).then(()=>{},()=>{});return}
+  if(el.dataset.in==="photofile"){const f=el.files&&el.files[0];el.value="";if(!f)return;
+    const rd=new FileReader();rd.onload=()=>{const im=new Image();im.onload=()=>{
+      // shrink big camera photos first so dragging stays smooth
+      let src=rd.result,w=im.naturalWidth,h=im.naturalHeight;const mx=1200;
+      if(Math.max(w,h)>mx){const k=mx/Math.max(w,h);const cv=document.createElement("canvas");cv.width=Math.round(w*k);cv.height=Math.round(h*k);cv.getContext("2d").drawImage(im,0,0,cv.width,cv.height);src=cv.toDataURL("image/jpeg",0.9);w=cv.width;h=cv.height}
+      const im2=new Image();im2.onload=()=>{ui.crop={src,img:im2,w,h,base:Math.max(CROP/w,CROP/h),z:1,x:0,y:0};ui.sheet="photo";render()};im2.src=src};
+      im.onerror=()=>toast("Couldn't open that photo. Try another one");im.src=rd.result};
+    rd.readAsDataURL(f);return}
   if(el.dataset.in==="restore"){const f=el.files&&el.files[0];if(!f)return;const rd=new FileReader();
     rd.onload=()=>{try{const d=JSON.parse(rd.result);if(!d||d.v!==1||!Array.isArray(d.sessions))throw 0;S=d;S.onboarded=true;save();ui.tab="history";render();toast(`Restored ${d.sessions.length} workouts`)}catch(e){toast("That file isn't a Lift Log backup")}};
     rd.readAsText(f);el.value="";return}if(el.dataset.in==="tplupd"){ui.updTpl=el.checked;return}if(el.dataset.in==="tplnew"){ui.saveTpl=el.checked;return}if(el.dataset.in==="fbox"){ui.f[el.dataset.k]=el.checked;render()}});
@@ -1339,7 +1387,7 @@ async function initSync(){
   if(!sb)return;
   sb.auth.onAuthStateChange((ev,session)=>{
     const u=session&&session.user||null;const changed=(u&&u.id)!==(SY.user&&SY.user.id);SY.user=u;
-    if(changed)setTimeout(()=>{if(u){META.dirty=META.dirty||hasData(S);saveMeta();push();loadPartner()}else{setSync("off");clearPartner()}render()},0);
+    if(changed)setTimeout(()=>{if(u){META.dirty=META.dirty||hasData(S);saveMeta();push();loadPartner();heartbeat()}else{setSync("off");clearPartner()}render()},0);
   });
   document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&SY.user){push();loadPartner()}});
   window.addEventListener("online",()=>{if(SY.user)push()});
@@ -1358,8 +1406,9 @@ function applyPartner(pk){
     entries:(x.entries||[]).map(en=>Object.assign({},en,{exId:map[en.exId]||"p:"+en.exId})).filter(en=>known.has(en.exId))}))
     .sort((a,b)=>a.date-b.date);
   const u=S.users.p;u.name=P.name;u.initial=(P.name.trim()[0]||"P").toUpperCase();
+  P.photo=(d.users&&d.users.d&&d.users.d.photo)||null;
 }
-function clearPartner(){P.on=false;P.id=null;P.rowId=null;P.sessions=[];PX=[];P.invite=null;P.incoming=null;
+function clearPartner(){P.on=false;P.id=null;P.rowId=null;P.photo=null;P.lastSeen=null;P.sessions=[];PX=[];P.invite=null;P.incoming=null;
   if(ui.whose!==S.me)ui.whose=S.me;if(ui.f.whose!==S.me)ui.f.whose=S.me;ui.exWho=null;
   try{localStorage.removeItem(KEY+"-partner")}catch(e){}}
 async function loadPartner(){
@@ -1375,7 +1424,7 @@ async function loadPartner(){
       if(P.invite&&P.invite.id!==acc.id){sb.from("partnerships").delete().eq("id",P.invite.id).then(()=>{},()=>{});P.invite=null}
       const {data:ud}=await sb.from("user_data").select("data").eq("user_id",pid).maybeSingle();
       const pk={id:pid,email:mineInv?acc.invitee_email:acc.inviter_email,name:mineInv?"":acc.inviter_name,data:ud?ud.data:{}};
-      applyPartner(pk);P.rowId=acc.id;P.incoming=null;
+      applyPartner(pk);P.rowId=acc.id;P.incoming=null;loadPresence();
       try{localStorage.setItem(KEY+"-partner",JSON.stringify(Object.assign({rowId:acc.id},pk)))}catch(e){}
     }else if(P.on){const inv=P.invite,inc=P.incoming;clearPartner();P.invite=inv;P.incoming=inc}
   }catch(e){}
@@ -1399,6 +1448,29 @@ async function partnerAct(kind){
   r.busy=false;await loadPartner();
 }
 try{const c=JSON.parse(localStorage.getItem(KEY+"-partner")||"null");if(c){applyPartner(c);P.rowId=c.rowId||null}}catch(e){}
+/* ---------- photo crop ---------- */
+const CROP=240;
+function clampCrop(){const c=ui.crop;const sw=c.w*c.base*c.z,sh=c.h*c.base*c.z;const mx=Math.max(0,(sw-CROP)/2),my=Math.max(0,(sh-CROP)/2);
+  c.x=Math.max(-mx,Math.min(mx,c.x));c.y=Math.max(-my,Math.min(my,c.y))}
+function cropStyle(){const c=ui.crop;const sc=c.base*c.z;return `width:${c.w*sc}px;height:${c.h*sc}px;left:${CROP/2+c.x-c.w*sc/2}px;top:${CROP/2+c.y-c.h*sc/2}px`}
+let drag=null;
+document.addEventListener("pointerdown",ev=>{const cr=ev.target.closest&&ev.target.closest("#crop");if(!cr||!ui.crop)return;drag={x:ev.clientX,y:ev.clientY,ox:ui.crop.x,oy:ui.crop.y};cr.setPointerCapture&&cr.setPointerCapture(ev.pointerId);ev.preventDefault()});
+document.addEventListener("pointermove",ev=>{if(!drag||!ui.crop)return;ui.crop.x=drag.ox+ev.clientX-drag.x;ui.crop.y=drag.oy+ev.clientY-drag.y;clampCrop();const im=$("#crop-img");if(im)im.setAttribute("style",cropStyle())});
+document.addEventListener("pointerup",()=>{drag=null});
+document.addEventListener("pointercancel",()=>{drag=null});
+
+/* ---------- presence: a green dot while the app is open ---------- */
+async function heartbeat(){
+  if(!sb||!SY.user||document.visibilityState!=="visible"||U("d").showOnline===false)return;
+  try{await sb.from("presence").upsert({user_id:SY.user.id},{onConflict:"user_id"})}catch(e){}
+}
+async function loadPresence(){
+  if(!sb||!SY.user||!P.on||!P.id)return;
+  try{const {data}=await sb.from("presence").select("last_seen").eq("user_id",P.id).maybeSingle();
+    const was=partnerOnline();P.lastSeen=data?data.last_seen:null;if(was!==partnerOnline()||ui.tab==="settings")render()}catch(e){}
+}
+setInterval(()=>{if(document.visibilityState==="visible"){heartbeat();loadPresence()}},60000);
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"){heartbeat();loadPresence()}});
 document.addEventListener("submit",ev=>{if(ev.target.id==="auth-form"){ev.preventDefault();doAuth()}});
 
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}

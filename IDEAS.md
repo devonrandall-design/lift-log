@@ -14,6 +14,14 @@ Turn pairing into small private groups so friends and family keep each other con
 - **Keep it encouraging**: no weight leaderboards, no shaming copy, a "rest week" toggle that pauses your target without breaking the crew streak.
 - Effort: about 2–3 sessions for crews, targets, board, feed and reactions. Push notifications are a separate chunk.
 
+### Push notifications (pocketed Oct 13)
+Possible without a native app: iPhone supports push for home-screen web apps (iOS 16.4+), after each person taps "Allow notifications" once.
+- **Best first use: rest timer done while the phone is locked.** Today the timer only works with the app on screen.
+- Partner invites, "Kay finished Full Body B", PR shout-outs; later Crew nudges.
+- Needs: notification keys, each phone's permission saved in Supabase, and a Supabase server function that sends them (on events, or scheduled for the rest timer).
+- Limits: plain banners and sound only, no buttons or live lock-screen countdown. Stops if the home-screen icon is deleted.
+- Effort: about 1–1.5 sessions.
+
 ### Apple Watch / Apple Health (pocketed Oct 13)
 Web apps can't read Apple Health, so this needs one of:
 1. **Shortcuts bridge** (~1–2 hrs, free): a Shortcut sends the latest watch strength workout (time, calories, avg heart rate) to Lift Log, matched to the session by time. One-way.
@@ -22,7 +30,7 @@ Web apps can't read Apple Health, so this needs one of:
 
 ## Features
 
-- **"Working out now" for your partner**: a live card when the other person is mid-workout ("DeVon is lifting · Upper 1 · 38 min · on Bench Press"). Opt-in per person. ~30 min.
+- **"Working out now" for your partner**: a live card when the other person is mid-workout ("DeVon is lifting · Upper 1 · 38 min · on Bench Press"). Builds on the green online dot. ~30 min.
 - **Send templates to your partner**: write a template into their account. Needs a write permission on top of today's read-only pairing.
 - **Spreadsheet import**: bring in the ~185 sessions from the old sheet. Dry run first, with a "help me read these" list. Undated, so either import in order or space them out from a start date.
 - **Plate shorthand entry**: type `2p 1q` in the weight box and it converts.
