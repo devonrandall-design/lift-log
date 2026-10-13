@@ -853,6 +853,7 @@ function renderSheet(){
       <div class="stack" style="gap:6px">
         <button class="loadopt" data-a="exMove" data-d="-1" ${i===0?"disabled style='opacity:.4'":""}><span>Move up</span><span></span></button>
         <button class="loadopt" data-a="exMove" data-d="1" ${i===n-1?"disabled style='opacity:.4'":""}><span>Move down</span><span></span></button>
+        <button class="loadopt" data-a="markAllDone" data-e="${i}"><span>Mark all sets done</span><span>${pendingSets(S.active,i).length?pendingSets(S.active,i).length+" with numbers":"fill in weight and reps first"}</span></button>
         <button class="loadopt" data-a="openVar" data-kind="active" data-i="${i}"><span>Switch version</span><span>machine, bar, dumbbell…</span></button>
         ${ex.equip==="machine"?`<button class="loadopt" data-a="setPlates" data-id="${ex.id}" data-v="${plateable(ex)?0:1}"><span>${plateable(ex)?"Plate-loaded: on":"Plate-loaded: off"}</span><span>${plateable(ex)?"tap if it's a weight stack":"tap if you load plates"}</span></button>`:""}
         <button class="loadopt" data-a="exRemove" style="color:var(--coral-text)"><span>Remove from workout</span><span>${done?`${done} logged set${done>1?"s":""} too`:""}</span></button>
@@ -884,15 +885,18 @@ function renderSheet(){
   }else if(k==="finish"){
     const A=S.active;const pr=prMap();
     const done=A.entries.map(en=>({en,sets:en.sets.filter(s=>s.done)})).filter(x=>x.sets.length);
+    const pending=pendingSets(A);
     const prs=[];
     for(const d of done){const prev=Math.max(0,...S.sessions.filter(s=>s.user===A.user).flatMap(s=>s.entries.filter(e=>e.exId===d.en.exId).flatMap(e=>e.sets.map(e1))));const b=bestE(d.sets);if(prev&&b>prev+0.01){const t=d.sets.filter(s=>e1(s)===b)[0];prs.push(`${exById(d.en.exId).name}: ${fw(t.w,exById(d.en.exId))} ${uLbl(exById(d.en.exId))} × ${t.r}`)}}
     const vol=done.reduce((a,d)=>a+d.sets.filter(s=>s.type!=="W").reduce((x,s)=>x+(+s.w||0)*(+s.r||0),0),0);
-    h=sheetWrap(`<h2 style="margin:0;font-size:24px">${done.length?"Nice work.":"Nothing logged yet"}</h2>
+    h=sheetWrap(`<h2 style="margin:0;font-size:24px">${done.length?"Nice work.":pending.length?"Almost done":"Nothing logged yet"}</h2>
+      ${pending.length?`<div class="card stack" style="gap:10px;border-color:var(--coral)"><div><div style="font-weight:800">${pending.length} set${pending.length>1?"s have":" has"} numbers but ${pending.length>1?"aren't":"isn't"} checked off</div><div class="small muted">Only checked sets get saved.</div></div>
+        <button class="btn btn-coral btn-block" data-a="markAllDone">Mark ${pending.length>1?"all "+pending.length+" sets":"it"} done</button></div>`:""}
       ${prs.length?`<div class="celebrate"><div style="font-weight:800;font-size:18px;margin-bottom:6px">${prs.length} new PR${prs.length>1?"s":""}</div>${prs.map(p=>`<div class="num" style="font-size:15px">${esc(p)}</div>`).join("")}</div>`:""}
       ${done.length?`<div class="stats"><div class="stat"><div class="num">${mmss((Date.now()-A.start)/1000).split(":")[0]}</div><div>minutes</div></div><div class="stat"><div class="num">${done.reduce((a,d)=>a+d.sets.filter(s=>s.type!=="W").length,0)}</div><div>working sets</div></div><div class="stat"><div class="num">${Math.round(toDisp(vol)/1000*10)/10}k</div><div>${uLbl()} moved</div></div></div>
       ${tplChanged()?`<label class="switch card" style="padding:10px 14px;gap:12px"><span><span style="font-weight:700;display:block">Update the “${esc(tplChanged().name)}” template</span><span class="small muted">Next time starts with today's exercises and order</span></span><input type="checkbox" id="f-tpl" data-in="tplupd" ${ui.updTpl?"checked":""}></label>`:""}
       ${!A.templateId?`<label class="switch card" style="padding:10px 14px;gap:12px"><span><span style="font-weight:700;display:block">Save as a template</span><span class="small muted">Start “${esc(A.name)}” with these exercises next time</span></span><input type="checkbox" id="f-tplnew" data-in="tplnew" ${ui.saveTpl?"checked":""}></label>`:""}
-      <button class="btn btn-coral btn-block" data-a="saveWorkout">Save workout</button>`:`<div class="muted">Tap the check on a set to log it, then finish.</div>`}
+      <button class="btn btn-coral btn-block" data-a="saveWorkout">Save workout</button>`:`${pending.length?"":`<div class="muted">Enter weight and reps for at least one set, then finish.</div>`}`}
       <button class="btn btn-ghost btn-block" data-a="closeSheet">Keep going</button>
       <button class="btn btn-block" style="background:transparent;color:var(--coral-fg);font-weight:600" data-a="discard">Discard workout</button>`,"Finish workout");
   }else if(k==="session"){
@@ -942,6 +946,8 @@ function applyTplUpdate(){
   const t=tplChanged();if(!t)return;const old={};t.items.forEach(i=>old[i.exId]=i);
   t.items=S.active.entries.map(en=>old[en.exId]||{exId:en.exId,sets:Math.max(1,en.sets.filter(s=>s.type!=="W").length),reps:"8–10",core:true,subs:[]});
 }
+/* sets with weight and reps typed in but not checked off */
+function pendingSets(A,onlyEntry){const out=[];(A?A.entries:[]).forEach((en,ei)=>{if(onlyEntry!=null&&ei!==onlyEntry)return;en.sets.forEach(st=>{if(!st.done&&st.w!==""&&st.w!=null&&+st.r>0)out.push(st)})});return out}
 function applyVariant(exId){
   const c=ui.varCtx;
   if(c.kind==="active"){const en=S.active.entries[c.i];if(en.exId!==exId){en.exId=exId;const L=lastEntry(S.active.user,exId);const t=L&&topSet(L.e.sets);en.sets.forEach(s=>{if(!s.done)s.w=t?t.w:""})}}
@@ -1025,6 +1031,8 @@ const ACT={
   setPlates:d=>{const ex=exById(d.id);const on=d.v==="1";ex.plates=on;if(!on)delete ex.pmode;
     ui.sheet=null;toast(on?`${ex.name} set to plate-loaded`:`${ex.name} set to weight stack`);
     if(on&&d.e!=null&&S.active&&S.active.entries[d.e]){setTimeout(()=>{ACT.openPlates({e:d.e,s:d.s});render()},0)}},
+  markAllDone:d=>{const list=pendingSets(S.active,d&&d.e!=null&&d.e!==""?+d.e:null);list.forEach(st=>st.done=true);
+    if(d&&d.e!=null&&d.e!==""){ui.sheet=null}toast(list.length?`Marked ${list.length} set${list.length>1?"s":""} done`:"Nothing to mark: add weight and reps first")},
   exMenu:d=>{ui.menuE=+d.e;ui.sheet="exmenu"},
   exMove:d=>{const a=S.active.entries;const i=ui.menuE,j=i+(+d.d);if(j<0||j>=a.length)return;[a[i],a[j]]=[a[j],a[i]];ui.sheet=null;
     setTimeout(()=>{const s=document.getElementById("ex-"+j);s&&s.scrollIntoView({block:"start"})},30)},
