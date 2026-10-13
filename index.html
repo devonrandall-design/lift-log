@@ -160,6 +160,11 @@ mark{background:var(--gold-bg);color:var(--gold-text);border-radius:3px;padding:
 .done .sin{border-color:transparent;background:transparent;color:var(--muted)}
 .stype{height:44px;border-radius:10px;border:0;background:transparent;font-weight:800;font-size:14px;color:var(--fg)}
 .stype.t-H{color:var(--mint-text);font-size:11px}
+.sgrid.hold{background:var(--mint-bg);border-radius:12px;margin-inline:-6px;padding:4px 6px}
+.secw{position:relative;display:block}
+.secw .sin{padding-right:30px;border-color:var(--mint)}
+.done .secw .sin{border-color:transparent}
+.secw::after{content:"sec";position:absolute;right:8px;top:50%;transform:translateY(-50%);font-family:var(--f-display);font-size:12px;font-weight:700;color:var(--mint-text);pointer-events:none}
 .sw{width:100%;height:44px;border-radius:10px;border:1px solid var(--line2);background:transparent;color:var(--fg);display:flex;align-items:center;justify-content:center;font-family:var(--f-num);font-size:14px;font-weight:700;padding:0}
 .sw.on{background:var(--mint);border-color:var(--mint);color:var(--ink)}
 .stype.t-W{color:var(--warm)} .stype.t-D{color:var(--coral-fg);font-size:12px} .stype.t-A{color:var(--blue);font-size:11px}
@@ -491,7 +496,7 @@ function renderActive(){
       ${lt?`<div class="last">Last time: <b>${isHold(lt)?wr(lt,ex):fw(lt.w,ex)+" "+uLbl(ex)+" × "+lt.r}</b>${lt.left!==""?" · "+esc(effortText(lt.left,A.user)):""}</div>`:`<div class="last">First time logging this one</div>`}
       ${banner}
       <div class="sets" role="table" aria-label="${esc(ex.name)} sets">
-      <div class="sgrid shead" role="row"><span role="columnheader">Set</span><span role="columnheader"><button class="unit-tg ${unitOf(ex)==="kg"?"kg":""}" data-a="togUnit" data-id="${ex.id}" aria-label="Weight in ${uLbl(ex)}. Tap to switch plates to ${unitOf(ex)==="kg"?"lbs":"kg"}">${uLbl(ex)} ⇄</button></span><span role="columnheader">${ex.measure==="time"?"Sec":"Reps"}</span><span role="columnheader">${ex.measure==="time"?"Timer":effortHead}</span><span role="columnheader"><span class="sr">Done</span></span></div>`;
+      <div class="sgrid shead" role="row"><span role="columnheader">Set</span><span role="columnheader"><button class="unit-tg ${unitOf(ex)==="kg"?"kg":""}" data-a="togUnit" data-id="${ex.id}" aria-label="Weight in ${uLbl(ex)}. Tap to switch plates to ${unitOf(ex)==="kg"?"lbs":"kg"}">${uLbl(ex)} ⇄</button></span><span role="columnheader">${ex.measure==="time"?"Seconds":en.sets.some(isHold)?"Reps / sec":"Reps"}</span><span role="columnheader">${ex.measure==="time"?"Timer":effortHead}</span><span role="columnheader"><span class="sr">Done</span></span></div>`;
     en.sets.forEach((s,si)=>{
       if(s.type==="N")n++;
       const lab=s.type==="W"?"W":s.type==="D"?"DROP":s.type==="A"?"AMRAP":s.type==="H"?"HOLD":String(n);
@@ -499,10 +504,10 @@ function renderActive(){
       const ph=L&&L.e.sets[si]?L.e.sets[si]:lt;
       const effVal=s.left===""?"":(U(A.user).effort==="rpe"?10-s.left:s.left);
       const effPh=ph&&ph.left!==""&&s.type!=="W"?(U(A.user).effort==="rpe"?10-ph.left:ph.left):"";
-      h+=`<div class="sgrid ${s.done?"done":""}" role="row">
+      h+=`<div class="sgrid ${s.done?"done":""} ${H?"hold":""}" role="row">
         <button class="stype t-${s.type}" data-a="cycleType" data-e="${ei}" data-s="${si}" aria-label="Set type ${lab}. Tap to choose a type">${lab}</button>
         <label><span class="sr">Weight in ${uLbl(ex)}</span><input class="sin" id="w-${ei}-${si}" inputmode="decimal" data-in="set" data-e="${ei}" data-s="${si}" data-f="w" value="${toDisp(s.w,ex)}" placeholder="${ph?fw(ph.w,ex):""}"></label>
-        <label><span class="sr">${H?"Seconds held":"Reps"}</span><input class="sin" id="r-${ei}-${si}" inputmode="numeric" data-in="set" data-e="${ei}" data-s="${si}" data-f="r" value="${s.r}" placeholder="${H?(ph&&isHold(ph)?ph.r:"sec"):(ph&&!isHold(ph)?ph.r:"")}"></label>
+        <label class="${H?"secw":""}"><span class="sr">${H?"Seconds held":"Reps"}</span><input class="sin" id="r-${ei}-${si}" inputmode="numeric" data-in="set" data-e="${ei}" data-s="${si}" data-f="r" value="${s.r}" placeholder="${H?(ph&&isHold(ph)?ph.r:"sec"):(ph&&!isHold(ph)?ph.r:"")}"></label>
         ${H?`<button class="sw ${run?"on":""}" data-a="holdTimer" data-e="${ei}" data-s="${si}" aria-label="${run?"Stop timer and fill in the seconds":"Start a timer for this hold"}">${run?`<span id="hold-t">${fmtSec((Date.now()-ui.hold.start)/1000)}</span>`:ICON.watch}</button>`
         :`<label><span class="sr">${effortHead}</span><input class="sin" id="l-${ei}-${si}" inputmode="numeric" data-in="set" data-e="${ei}" data-s="${si}" data-f="left" value="${effVal}" placeholder="${s.type==="W"?"–":effPh}" ${s.type==="W"?"disabled":""}></label>`}
         <button class="check ${s.type==="W"?"w":""}" data-a="toggleDone" data-e="${ei}" data-s="${si}" aria-pressed="${!!s.done}" aria-label="${s.done?"Set completed. Tap to undo":"Complete set"}">${ICON.check}</button></div>`;
