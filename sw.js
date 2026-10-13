@@ -1,6 +1,6 @@
 // Lift Log service worker: lets the app open with no signal.
 // The page itself is network-first, so a new deploy shows up on the next open when online.
-const CACHE = "liftlog-v1";
+const CACHE = "liftlog-v2";
 const CORE = ["/", "/index.html", "/manifest.webmanifest", "/icon-192.png", "/apple-touch-icon.png"];
 
 self.addEventListener("install", (e) => {
@@ -35,7 +35,9 @@ self.addEventListener("fetch", (e) => {
   }
 
   // Fonts and static files: cache first, then fill the cache from the network.
-  const cacheable = url.origin === location.origin || url.hostname.endsWith("fonts.googleapis.com") || url.hostname.endsWith("fonts.gstatic.com");
+  // Never cache the database API; do cache the app's own files, fonts and the Supabase library.
+  if (url.hostname.endsWith("supabase.co")) return;
+  const cacheable = url.origin === location.origin || url.hostname.endsWith("fonts.googleapis.com") || url.hostname.endsWith("fonts.gstatic.com") || url.hostname === "cdn.jsdelivr.net";
   if (!cacheable) return;
   e.respondWith(
     caches.match(req).then((hit) =>

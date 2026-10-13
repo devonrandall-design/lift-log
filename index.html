@@ -17,6 +17,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&family=JetBrains+Mono:wght@500;700&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <style>
 html{-webkit-text-size-adjust:100%}
 body{margin:0;overscroll-behavior-y:none}
@@ -194,6 +195,8 @@ textarea{width:100%;min-height:64px;border-radius:12px;border:1px solid var(--li
 @keyframes up{from{transform:translateY(30px);opacity:.6}to{transform:none;opacity:1}}
 @media (prefers-reduced-motion:reduce){.sheet{animation:none}}
 .app{padding-top:calc(16px + env(safe-area-inset-top,0px))}
+.sync-dot{width:12px;height:12px;border-radius:6px;flex-shrink:0;background:var(--faint)}
+.sync-dot.s-synced{background:var(--mint)} .sync-dot.s-syncing{background:var(--gold)} .sync-dot.s-error{background:var(--coral)} .sync-dot.s-off{background:var(--coral)}
 .top.sticky{top:0;padding-top:calc(8px + env(safe-area-inset-top,0px))}
 .onboard{display:flex;flex-direction:column;gap:22px;padding-top:24px;padding-bottom:40px}
 .onboard .mark{width:64px;height:64px;border-radius:18px;background:var(--coral);color:var(--ink);display:flex;align-items:center;justify-content:center}
@@ -269,8 +272,21 @@ let S=null;
 try{const raw=localStorage.getItem(KEY);if(raw)S=JSON.parse(raw)}catch(e){}
 if(!S||S.v!==1)S=seed();
 function applyTheme(){const t=S.users[S.me].theme||"system";const r=document.documentElement;r.classList.toggle("t-light",t==="light");r.classList.toggle("t-dark",t==="dark")}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
-const ui={hf:{name:"all",pr:false,notes:false,sort:"newest"},updTpl:false,tab:"workout",exId:null,exWho:null,exReturn:null,search:false,q:"",sTab:"sets",whose:S.me,
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}if(!SY.applying){META.dirty=true;saveMeta();schedulePush()}}
+
+/* ---------- cloud sync (Supabase) ----------
+   The phone stays in charge: everything saves locally first, then the whole log
+   is copied to the person's own row in Supabase a couple of seconds later. */
+const SB_URL="https://dubpenaokbqjolnncrpk.supabase.co";
+const SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR1YnBlbmFva2Jxam9sbm5jcnBrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4NDYwOTEsImV4cCI6MjEwNzQyMjA5MX0.VTI6pCqP08-TaFT01ulMqxKQw2_RyC9deiF3VOTZk3U";
+const META_KEY=KEY+"-sync";
+let META={syncedAt:null,dirty:true};
+try{const m=JSON.parse(localStorage.getItem(META_KEY)||"null");if(m)META=m}catch(e){}
+function saveMeta(){try{localStorage.setItem(META_KEY,JSON.stringify(META))}catch(e){}}
+const SY={user:null,status:"off",err:"",busy:false,again:false,timer:null,applying:false,at:0};
+let sb=null;
+try{if(window.supabase&&window.supabase.createClient)sb=window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false,storageKey:"liftlog-auth"}})}catch(e){sb=null}
+const ui={auth:{mode:"signup",email:"",pass:"",err:"",busy:false},hf:{name:"all",pr:false,notes:false,sort:"newest"},updTpl:false,tab:"workout",exId:null,exWho:null,exReturn:null,search:false,q:"",sTab:"sets",whose:S.me,
   f:{whose:S.me,equip:[],brand:[],when:"all",pr:false,notes:false,hideWarm:true},sort:"newest",
   sheet:null,short:{},rest:null,tplId:null,picker:{q:"",target:null},nx:null,sessionId:null,toast:null};
 
@@ -383,6 +399,7 @@ function renderWorkout(){
   const mine=S.templates.filter(t=>t.for===S.me);
   const last=sessionsOf(S.me).slice(-1)[0];
   let h=topbar(`Ready, ${me.name}?`,"Start a workout");
+  if(sb&&!SY.user)h+=`<button class="card tap row" data-a="tab" data-v="settings" style="gap:12px;margin-bottom:12px"><span class="sync-dot s-off" aria-hidden="true"></span><span style="flex:1;min-width:0"><span style="font-weight:800;display:block">Turn on sync</span><span class="small muted">Back up every workout to your account automatically.</span></span><span class="faint" aria-hidden="true">›</span></button>`;
   if(S.active&&S.active.user!==S.me)h+=`<div class="card small muted" style="margin-bottom:12px">${esc(U(S.active.user).name)} has a workout in progress. Switch to them in settings to see it.</div>`;
   if(last)h+=`<div class="small muted" style="margin-bottom:14px">Last: <span style="color:var(--fg)">${esc(last.name)}</span> · ${ago(last.date)}</div>`;
   h+=`<div class="stack">`;
@@ -665,6 +682,32 @@ function themeCard(k,label,bg,card,line,txt){
       <span style="display:block;height:4px;width:60%;border-radius:2px;background:${txt};margin-top:6px;opacity:.6"></span></span>
     <span class="between" style="width:100%"><span style="font-weight:800">${label}</span>${on?`<span class="good">${ICON.check}</span>`:""}</span></button>`;
 }
+function syncLine(){
+  const s=SY.status;
+  if(s==="syncing")return "Saving…";
+  if(s==="offline")return "Waiting for signal. Everything is saved on this phone.";
+  if(s==="error")return "Couldn't sync: "+(SY.err||"unknown problem")+". It'll retry.";
+  if(s==="synced"){const m=Math.round((Date.now()-SY.at)/60000);return "Up to date · "+(m<1?"just now":m<60?m+" min ago":ago(SY.at))}
+  return "";
+}
+function syncSection(){
+  if(!sb)return `<section class="stack"><h2 class="lbl">Sync</h2><div class="card small muted">Sync couldn't start because the app opened without a connection. Your workouts are still saved on this phone. Reopen the app with signal to sync.</div></section>`;
+  if(SY.user)return `<section class="stack"><h2 class="lbl">Sync</h2><div class="card stack" style="gap:10px">
+    <div class="row" style="gap:12px"><span class="sync-dot s-${SY.status}" aria-hidden="true"></span><div style="min-width:0"><div style="font-weight:700;overflow-wrap:anywhere">On · ${esc(SY.user.email||"")}</div><div class="small muted" id="sync-line">${esc(syncLine())}</div></div></div>
+    <div class="small muted">Every set saves to your account automatically. Sign in on any phone to get your workouts back.</div>
+    <div class="grid2"><button class="btn btn-ghost" data-a="syncNow">Sync now</button><button class="btn btn-ghost" data-a="signOut">Sign out</button></div></div></section>`;
+  const a=ui.auth;const up=a.mode==="signup";
+  return `<section class="stack"><h2 class="lbl">Sync</h2><form class="card stack" id="auth-form" style="gap:10px" novalidate>
+    <div style="font-weight:800;font-size:17px">${up?"Create your account":"Sign in to sync"}</div>
+    <div class="small muted">Back up every workout automatically and get it back on any phone.${up?" Use any email you like. Nothing gets sent to it.":""}</div>
+    <label class="stack" style="gap:6px"><span class="eyebrow">Email</span><input class="field" id="auth-email" type="email" autocomplete="username" inputmode="email" autocapitalize="off" data-in="auth" data-k="email" value="${esc(a.email)}" style="font-size:16px;height:46px"></label>
+    <label class="stack" style="gap:6px"><span class="eyebrow">Password</span><input class="field" id="auth-pass" type="password" autocomplete="${up?"new-password":"current-password"}" data-in="auth" data-k="pass" value="${esc(a.pass)}" style="font-size:16px;height:46px"></label>
+    ${up?`<div class="small faint" style="margin-top:-4px">At least 6 characters. Your phone can save it for you.</div>`:""}
+    ${a.err?`<div class="small" role="alert" style="color:var(--coral-fg)">${esc(a.err)}</div>`:""}
+    <button class="btn btn-coral btn-block" type="submit" ${a.busy?"disabled":""}>${a.busy?"One sec…":up?"Create account":"Sign in"}</button>
+    <button type="button" class="chip" style="align-self:center;border:0;background:none;color:var(--coral-text)" data-a="authMode">${up?"Already have an account? Sign in":"New here? Create an account"}</button>
+  </form></section>`;
+}
 function renderOnboard(){
   const me=U("d");
   return `<div class="onboard"><div class="mark" aria-hidden="true">${ICON.dumbbell}</div>
@@ -676,7 +719,8 @@ function renderOnboard(){
       <button class="loadopt" aria-pressed="${(me.plateStyle||"numbers")==="numbers"}" data-a="setPlateStyle" data-v="numbers"><span>Plate weights</span><span>"Each side: 2 × 45 + 25"</span></button>
       <button class="loadopt" aria-pressed="${me.plateStyle==="letters"}" data-a="setPlateStyle" data-v="letters"><span>Shorthand</span><span>"Each side: 2p 1q"</span></button></section>
     <div class="small faint">Your workouts save on this phone. Back them up anytime from Settings.</div>
-    <button class="btn btn-coral btn-block" data-a="finishOnboard">Start lifting</button></div>`;
+    <button class="btn btn-coral btn-block" data-a="finishOnboard">Start lifting</button>
+    ${sb?`<button class="btn btn-ghost btn-block" data-a="obSignin">I already have an account</button>`:""}</div>`;
 }
 function renderSettings(){
   const me=U(S.me);
@@ -685,10 +729,11 @@ function renderSettings(){
       <div class="grid2">${themeCard("light","Light","#FBF6F1","#FFFFFF","#EADFD6","#2A1F1A")}${themeCard("dark","Dark","#15110F","#211A17","#352A25","#F7F1EA")}</div>
       <button class="loadopt" aria-pressed="${(me.theme||"system")==="system"}" data-a="setTheme" data-v="system"><span>Match my phone</span><span>switches with your phone's setting</span></button>
       </section>
+    ${syncSection()}
     <section class="stack"><h2 class="lbl">Your data</h2>
-      <div class="card stack" style="gap:10px"><div class="small muted">Your workouts are saved on this phone only, until syncing arrives. Back up every week or so, and keep the file somewhere safe like iCloud Drive.</div>
-        <div class="small" style="font-weight:600">${S.lastBackup?`Last backup: ${ago(S.lastBackup)}`:"Not backed up yet"} · ${S.sessions.filter(s=>s.user===S.me).length} workouts logged</div>
-        <button class="btn btn-coral btn-block" data-a="backup">Back up my data</button>
+      <div class="card stack" style="gap:10px"><div class="small muted">${SY.user?"Sync already keeps a copy in your account. A backup file is an extra copy you control.":"Without sync, your workouts live on this phone only. Back up every week or so, and keep the file somewhere safe like iCloud Drive."}</div>
+        <div class="small" style="font-weight:600">${S.lastBackup?`Last backup file: ${ago(S.lastBackup)}`:"No backup file yet"} · ${S.sessions.filter(s=>s.user===S.me).length} workouts logged</div>
+        <button class="btn ${SY.user?"btn-ghost":"btn-coral"} btn-block" data-a="backup">Back up my data</button>
         <label class="btn btn-ghost btn-block" style="display:flex;align-items:center;justify-content:center;cursor:pointer">Restore from a backup<input type="file" id="restore-file" accept="application/json,.json" data-in="restore" class="sr"></label></div></section>
     <section class="stack"><h2 class="lbl">Default weight unit</h2><div class="seg">${["lbs","kg"].map(x=>`<button aria-pressed="${S.units===x}" data-a="setUnits" data-v="${x}">${x}</button>`).join("")}</div>
       <div class="small faint">Used for new exercises. Any exercise with kg plates can be switched on its own: tap the unit above its weight column, or set it when creating it.</div></section>
@@ -700,7 +745,8 @@ function renderSettings(){
       <button class="loadopt" aria-pressed="${me.plateStyle==="letters"}" data-a="setPlateStyle" data-v="letters"><span>Shorthand</span><span>"Each side: 2p 1q"</span></button>
       <div class="small faint">Shorthand key: p 45 · th 35 · q 25 · t 10 · f 5 · b 2.5</div></section>
     <section class="stack"><h2 class="lbl">Your name</h2><label><span class="sr">Your name</span><input class="field" id="name-${S.me}" data-in="uname" data-u="${S.me}" value="${esc(me.name)}" style="font-size:15px;height:44px"></label></section>
-    <button class="btn btn-block" style="background:transparent;color:var(--coral-fg);font-weight:600;border:1px solid var(--line2)" data-a="erase">${ui.confirmErase?"Tap again to erase every workout on this phone":"Erase everything"}</button>
+    <button class="btn btn-block" style="background:transparent;color:var(--coral-fg);font-weight:600;border:1px solid var(--line2)" data-a="erase">${ui.confirmErase?(SY.user?"Tap again to sign out and erase this phone":"Tap again to erase every workout on this phone"):(SY.user?"Sign out and erase this phone":"Erase everything")}</button>
+    ${SY.user?`<div class="small faint" style="text-align:center;margin-top:-8px">Your synced workouts stay safe in your account.</div>`:""}
     <div class="sample">Lift Log · saved on this phone</div></div>`;
 }
 
@@ -985,8 +1031,14 @@ const ACT={
   setEffort:d=>{U(S.me).effort=d.v},
   setTheme:d=>{U(S.me).theme=d.v},
   setPlateStyle:d=>{U(S.me).plateStyle=d.v},
+  obSignin:()=>{if(!(U("d").name||"").trim()){U("d").name="Lifter";U("d").initial="L"}S.onboarded=true;ui.tab="settings";ui.auth.mode="signin";ui.auth.err="";
+    setTimeout(()=>{const e=$("#auth-email");e&&e.focus()},50)},
+  authMode:()=>{ui.auth.mode=ui.auth.mode==="signup"?"signin":"signup";ui.auth.err=""},
+  syncNow:()=>{push();return false},
+  signOut:()=>{clearTimeout(SY.timer);sb.auth.signOut().finally(()=>{SY.user=null;setSync("off");render();toast("Signed out. Workouts stay on this phone")});return false},
   erase:()=>{if(!ui.confirmErase){ui.confirmErase=true;setTimeout(()=>{ui.confirmErase=false;render()},5000);return}
-    ui.confirmErase=false;try{localStorage.removeItem(KEY)}catch(e){}S=seed();ui.rest=null;ui.sheet=null;ui.exId=null;ui.tplId=null;ui.tab="workout";toast("Everything erased")},
+    ui.confirmErase=false;if(SY.user&&sb){clearTimeout(SY.timer);sb.auth.signOut();SY.user=null;setSync("off")}
+    META={syncedAt:null,dirty:true};saveMeta();try{localStorage.removeItem(KEY)}catch(e){}S=seed();ui.rest=null;ui.sheet=null;ui.exId=null;ui.tplId=null;ui.tab="workout";toast("Everything erased")},
   backup:()=>{
     const data=JSON.stringify(S,null,1);const d=new Date();const name=`lift-log-backup-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}.json`;
     const file=new File([data],name,{type:"application/json"});
@@ -1008,6 +1060,7 @@ document.addEventListener("input",ev=>{
     else{if(v===""){s.left=""}else{const n=parseFloat(v);s.left=U(S.active.user).effort==="rpe"?Math.max(0,Math.min(10,10-n)):Math.max(0,n)}}
     save();return}
   if(k==="note"){S.active.entries[el.dataset.e].note=el.value;save();return}
+  if(k==="auth"){ui.auth[el.dataset.k]=el.value;return}
   if(k==="wname"){S.active.name=el.value;save();return}
   if(k==="pltarget"){const P=ui.pl;const ex=exById(S.active.entries[P.e].exId);P.target=el.value;const v=parseFloat(el.value);
     if(!isNaN(v)){const r=platesFor(ex,v);P.plates=r.plates;P.miss=r.below?`That's less than the ${pbaseD(ex)} ${uLbl(ex)} starting weight.`:r.rem>0.01?`Can't hit ${v} exactly with these plates. Closest is ${plateTotal(ex,r.plates)} ${uLbl(ex)}.`:""}
@@ -1044,7 +1097,95 @@ document.addEventListener("keydown",ev=>{
   if((ev.key==="Enter"||ev.key==="Escape")&&ev.target.dataset&&ev.target.dataset.in==="setup"){ev.preventDefault();ui.editSetup=null;ev.target.blur();render()}
 });
 
+/* ---------- sync engine ---------- */
+function setSync(st,err){SY.status=st;SY.err=err||"";if(st==="synced")SY.at=Date.now();const el=$("#sync-line");if(el)el.textContent=syncLine();
+  document.querySelectorAll(".sync-dot").forEach(d=>{if(SY.user)d.className="sync-dot s-"+st})}
+function schedulePush(){if(!sb||!SY.user)return;clearTimeout(SY.timer);SY.timer=setTimeout(push,2000)}
+function persistLocal(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+function mergeArr(a,b){const ids=new Set((a||[]).map(x=>x.id));return (a||[]).concat((b||[]).filter(x=>x&&!ids.has(x.id)))}
+function mergeState(local,cloud){
+  const out=Object.assign({},cloud,local);
+  out.sessions=mergeArr(local.sessions,cloud.sessions).sort((x,y)=>x.date-y.date);
+  out.exercises=mergeArr(local.exercises,cloud.exercises);
+  out.templates=mergeArr(local.templates,cloud.templates);
+  out.active=local.active||cloud.active||null;
+  out.lastBackup=Math.max(local.lastBackup||0,cloud.lastBackup||0);
+  return out;
+}
+const hasData=st=>!!(st&&((st.sessions&&st.sessions.length)||(st.templates&&st.templates.length)||st.active));
+async function pullMerge(){
+  const {data,error}=await sb.from("user_data").select("data,updated_at").eq("user_id",SY.user.id).maybeSingle();
+  if(error)throw error;
+  if(!data||data.updated_at===META.syncedAt)return false;
+  const cloud=data.data||{};
+  if(cloud.v!==1){META.syncedAt=data.updated_at;saveMeta();return false}
+  SY.applying=true;
+  if(!META.dirty||!hasData(S)){S=Object.assign(cloud,{me:"d",solo:true,onboarded:true});META.dirty=false}
+  else{S=mergeState(S,cloud);S.onboarded=true;META.dirty=true}
+  persistLocal();SY.applying=false;
+  META.syncedAt=data.updated_at;saveMeta();render();
+  return true;
+}
+async function push(){
+  if(!sb||!SY.user)return;
+  if(SY.busy){SY.again=true;return}
+  if(!navigator.onLine){setSync("offline");return}
+  SY.busy=true;setSync("syncing");
+  try{
+    const {data:head,error:e1}=await sb.from("user_data").select("updated_at").eq("user_id",SY.user.id).maybeSingle();
+    if(e1)throw e1;
+    if(head&&head.updated_at!==META.syncedAt)await pullMerge(); // another phone saved first: fold it in
+    if(META.dirty||!head){
+      const js=JSON.stringify(S);
+      const {data,error}=await sb.from("user_data").upsert({user_id:SY.user.id,data:S},{onConflict:"user_id"}).select("updated_at").single();
+      if(error)throw error;
+      META.syncedAt=data.updated_at;
+      if(JSON.stringify(S)===js)META.dirty=false;
+      saveMeta();
+    }
+    setSync("synced");
+  }catch(err){SY.applying=false;setSync(navigator.onLine?"error":"offline",err&&err.message)}
+  SY.busy=false;
+  if(SY.again){SY.again=false;schedulePush()}
+}
+function authMsg(e){
+  const m=String(e&&e.message||"").toLowerCase();
+  if(m.includes("invalid login"))return "That email and password don't match. Check for typos, or create an account.";
+  if(m.includes("already registered")||m.includes("already been registered")||m.includes("already exists"))return "There's already an account with that email. Sign in instead.";
+  if(m.includes("not confirmed"))return "This account is waiting on email confirmation. Turn off “Confirm email” in Supabase, then sign in again.";
+  if(m.includes("signups not allowed")||m.includes("signup is disabled")||m.includes("not allowed"))return "New accounts are turned off for this app.";
+  if(m.includes("fetch")||m.includes("network")||m.includes("load failed"))return "Couldn't reach the server. Try again when you have signal.";
+  if(m.includes("rate")||m.includes("too many"))return "Too many tries. Wait a minute and try again.";
+  if(m.includes("password"))return "Use a password with at least 6 characters.";
+  return (e&&e.message)||"Something went wrong. Try again.";
+}
+async function doAuth(){
+  const a=ui.auth;const email=(a.email||"").trim().toLowerCase();const pass=a.pass||"";
+  if(!/^\S+@\S+\.\S+$/.test(email)){a.err="Enter your email address.";render();return}
+  if(pass.length<6){a.err="Use a password with at least 6 characters.";render();return}
+  a.busy=true;a.err="";render();
+  try{
+    const up=a.mode==="signup";
+    const r=up?await sb.auth.signUp({email,password:pass}):await sb.auth.signInWithPassword({email,password:pass});
+    if(r.error)throw r.error;
+    if(up&&!r.data.session){a.mode="signin";a.err="Account created, but Supabase is still asking for email confirmation. Turn off “Confirm email” in Supabase, then sign in."}
+    else{a.pass="";toast(up?"Account created. Syncing your workouts":"Signed in. Syncing your workouts")}
+  }catch(err){a.err=authMsg(err)}
+  a.busy=false;render();
+}
+async function initSync(){
+  if(!sb)return;
+  sb.auth.onAuthStateChange((ev,session)=>{
+    const u=session&&session.user||null;const changed=(u&&u.id)!==(SY.user&&SY.user.id);SY.user=u;
+    if(changed)setTimeout(()=>{if(u){META.dirty=META.dirty||hasData(S);saveMeta();push()}else setSync("off");render()},0);
+  });
+  document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&SY.user)push()});
+  window.addEventListener("online",()=>{if(SY.user)push()});
+}
+document.addEventListener("submit",ev=>{if(ev.target.id==="auth-form"){ev.preventDefault();doAuth()}});
+
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
+initSync();
 if("serviceWorker" in navigator){window.addEventListener("load",()=>{navigator.serviceWorker.register("/sw.js").catch(()=>{})})}
 render();
 })();

@@ -2,11 +2,14 @@
 
 A workout tracker for progressive overload, built as a home-screen web app (PWA).
 
-- `index.html`: the whole app (logging, rest timer, history, search, templates, plate helper)
+- `index.html`: the whole app (logging, rest timer, history, search, templates, plate helper, sync)
 - `sw.js`: lets it open without signal at the gym
 - `manifest.webmanifest` and the icon images: home-screen name and icon
 
-Data is saved on each phone for now. Use **Settings → Back up my data** regularly.
-Syncing between phones (Supabase) comes next.
+## Sync
+
+Each person signs in with email + password (Settings → Sync). Everything saves on the
+phone first, then copies to that person's own row in the Supabase `user_data` table.
+Row-level security only lets a signed-in user read or write their own row.
 
 Deployed on Vercel as a static site, no build step.
