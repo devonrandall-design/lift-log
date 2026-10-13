@@ -286,14 +286,19 @@ try{const m=JSON.parse(localStorage.getItem(META_KEY)||"null");if(m)META=m}catch
 function saveMeta(){try{localStorage.setItem(META_KEY,JSON.stringify(META))}catch(e){}}
 const SY={user:null,status:"off",err:"",busy:false,again:false,timer:null,applying:false,at:0};
 let sb=null;
+/* partner: read-only copy of the paired person's workouts, never uploaded */
+const P={on:false,id:null,rowId:null,name:"",email:"",sessions:[],invite:null,incoming:null};
+let PX=[];
 try{if(window.supabase&&window.supabase.createClient)sb=window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false,storageKey:"liftlog-auth"}})}catch(e){sb=null}
-const ui={auth:{mode:"signup",email:"",pass:"",err:"",busy:false},hf:{name:"all",pr:false,notes:false,sort:"newest"},updTpl:false,tab:"workout",exId:null,exWho:null,exReturn:null,search:false,q:"",sTab:"sets",whose:S.me,
+const ui={pair:{email:"",err:"",busy:false},auth:{mode:"signup",email:"",pass:"",err:"",busy:false},hf:{name:"all",pr:false,notes:false,sort:"newest"},updTpl:false,tab:"workout",exId:null,exWho:null,exReturn:null,search:false,q:"",sTab:"sets",whose:S.me,
   f:{whose:S.me,equip:[],brand:[],when:"all",pr:false,notes:false,hideWarm:true},sort:"newest",
   sheet:null,short:{},rest:null,tplId:null,picker:{q:"",target:null},nx:null,sessionId:null,toast:null};
 
 /* ---------- helpers ---------- */
 function weekStart(d){const x=new Date(d);x.setHours(0,0,0,0);x.setDate(x.getDate()-((x.getDay()+6)%7));return x}
-const exById=id=>S.exercises.find(e=>e.id===id);
+const exById=id=>S.exercises.find(e=>e.id===id)||PX.find(e=>e.id===id);
+const ALLS=()=>P.on?S.sessions.concat(P.sessions):S.sessions; // my workouts plus my partner's (read-only)
+const isSolo=()=>!P.on;
 const U=id=>S.users[id];
 const other=id=>id==="d"?"p":"d";
 /* weights are stored in lbs; each exercise version can log in kg (kg plates) regardless of the default unit */
@@ -315,7 +320,7 @@ function varLbl(ex){return exLabel(ex)+(ex.load==="each"?" · each side":"")+(ex
 /* duplicate guard: "Hip-thrust", "hip thrusts" and "Hip Thrust" are one movement; brands match ignoring case and spacing */
 function normName(s){let n=String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");n=n.replace(/(ss|sh|ch|x)es$/,"$1");if(/[^s]s$/.test(n))n=n.slice(0,-1);return n}
 const normBrand=s=>String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
-function siblings(ex){const n=normName(ex.name);return S.exercises.filter(e=>normName(e.name)===n)}
+function siblings(ex){const n=normName(ex.name);return (String(ex.id).startsWith("p:")?PX:S.exercises).filter(e=>normName(e.name)===n)}
 function findDup(nx){const nn=normName(nx.name);if(!nn)return null;const br=BRANDED[nx.equip]?normBrand(nx.brand):"";
   return S.exercises.find(e=>normName(e.name)===nn&&e.equip===nx.equip&&normBrand(e.brand)===br)||null}
 /* ---------- plate math ---------- */
@@ -369,14 +374,14 @@ function ago(t){const d=Math.round((Date.now()-t)/DAY);return d<=0?"today":d===1
 const working=sets=>sets.filter(s=>s.type!=="W"&&s.w>0&&s.r>0);
 function topSet(sets){let b=null;for(const s of working(sets)){if(!b||s.w>b.w||(s.w===b.w&&s.r>b.r))b=s}return b}
 function bestE(sets){return Math.max(0,...working(sets).map(e1))}
-function sessionsOf(user){return S.sessions.filter(s=>user==="both"||s.user===user)}
+function sessionsOf(user){return ALLS().filter(s=>user==="both"||s.user===user)}
 function lastEntry(user,exId,before){
-  for(let i=S.sessions.length-1;i>=0;i--){const s=S.sessions[i];if(s.user!==user||(before&&s.date>=before))continue;const e=s.entries.find(x=>x.exId===exId);if(e&&working(e.sets).length)return {s,e}}
+  const all=ALLS();for(let i=all.length-1;i>=0;i--){const s=all[i];if(s.user!==user||(before&&s.date>=before))continue;const e=s.entries.find(x=>x.exId===exId);if(e&&working(e.sets).length)return {s,e}}
   return null;
 }
 function prMap(){
   const best={},map={},sess={};
-  for(const s of S.sessions){s.entries.forEach((en,ei)=>{const k=s.user+"|"+en.exId;en.sets.forEach((st,si)=>{const v=e1(st);if(!v)return;if(best[k]!=null&&v>best[k]+0.01){map[s.id+"|"+ei+"|"+si]=1;sess[s.id]=1}if(best[k]==null||v>best[k])best[k]=v})})}
+  for(const s of ALLS()){s.entries.forEach((en,ei)=>{const k=s.user+"|"+en.exId;en.sets.forEach((st,si)=>{const v=e1(st);if(!v)return;if(best[k]!=null&&v>best[k]+0.01){map[s.id+"|"+ei+"|"+si]=1;sess[s.id]=1}if(best[k]==null||v>best[k])best[k]=v})})}
   return {map,sess};
 }
 function hl(text,q){const t=esc(text);if(!q)return t;const rq=esc(q).replace(/[.*+?^${}()|[\]\\]/g,"\\$&");return t.replace(new RegExp("("+rq+")","ig"),"<mark>$1</mark>")}
@@ -401,6 +406,7 @@ function renderWorkout(){
   const mine=S.templates.filter(t=>t.for===S.me);
   const last=sessionsOf(S.me).slice(-1)[0];
   let h=topbar(`Ready, ${me.name}?`,"Start a workout");
+  if(P.incoming&&!P.on)h+=`<button class="card tap row" data-a="tab" data-v="settings" style="gap:12px;margin-bottom:12px;border-color:var(--coral)"><span class="sync-dot s-synced" aria-hidden="true"></span><span style="flex:1;min-width:0"><span style="font-weight:800;display:block">${esc(P.incoming.inviter_name||"Your partner")} wants to share workouts</span><span class="small muted">Tap to accept in Settings</span></span><span class="faint" aria-hidden="true">›</span></button>`;
   if(sb&&!SY.user)h+=`<button class="card tap row" data-a="tab" data-v="settings" style="gap:12px;margin-bottom:12px"><span class="sync-dot s-off" aria-hidden="true"></span><span style="flex:1;min-width:0"><span style="font-weight:800;display:block">Turn on sync</span><span class="small muted">Back up every workout to your account automatically.</span></span><span class="faint" aria-hidden="true">›</span></button>`;
   if(S.active&&S.active.user!==S.me)h+=`<div class="card small muted" style="margin-bottom:12px">${esc(U(S.active.user).name)} has a workout in progress. Switch to them in settings to see it.</div>`;
   if(last)h+=`<div class="small muted" style="margin-bottom:14px">Last: <span style="color:var(--fg)">${esc(last.name)}</span> · ${ago(last.date)}</div>`;
@@ -514,19 +520,19 @@ function renderHistory(){
       ${ts?`<div class="small" style="margin-top:6px"><span class="num">${esc(exById(first.exId).name)} ${fw(ts.w,exById(first.exId))} × ${ts.r}</span>${diff>0?` <span class="good">+${fw(diff,exById(first.exId))} ${uLbl(exById(first.exId))}</span>`:""}${pr.sess[s.id]?` <span class="pr" style="margin-left:4px">PR</span>`:""}</div>`:""}</div></button>`;
   }
   if(!ss.length)h+=all.length?`<div class="card muted">Nothing matches these filters. <button class="chip" style="margin-top:8px" data-a="hfReset">Clear filters</button></div>`:`<div class="card muted">No workouts yet. Finish one and it shows up here.</div>`;
-  h+=`</div><div class="sample">Sample data for the prototype. Reset it in settings.</div>`;
+  h+=`</div>`;
   return h;
 }
 function whoseSeg(key,val){
-  if(S.solo)return "";
+  if(isSolo())return "";
   return `<div class="seg" role="group" aria-label="Whose workouts">${[["d",U("d").name],["p",U("p").name],["both","Both"]].map(([k,l])=>`<button aria-pressed="${val===k}" data-a="setWhose" data-key="${key}" data-v="${k}">${esc(k===S.me?"Mine":l)}</button>`).join("")}</div>`;
 }
 
 /* ---------- search ---------- */
-function matchEx(q){q=q.trim().toLowerCase();if(!q)return [];const nq=normName(q);return S.exercises.filter(e=>(e.name+" "+(e.brand||"")+" "+EQ[e.equip]).toLowerCase().includes(q)||(nq.length>2&&(normName(e.name).includes(nq)||normBrand(e.brand).includes(nq))))}
+function matchEx(q){q=q.trim().toLowerCase();if(!q)return [];const nq=normName(q);return S.exercises.concat(PX).filter(e=>(e.name+" "+(e.brand||"")+" "+EQ[e.equip]).toLowerCase().includes(q)||(nq.length>2&&(normName(e.name).includes(nq)||normBrand(e.brand).includes(nq))))}
 function collectSets(q){
   const exs=matchEx(q);const ids=new Set(exs.map(e=>e.id));const pr=prMap();const out=[];
-  for(const s of S.sessions){s.entries.forEach((en,ei)=>{if(!ids.has(en.exId))return;const top=topSet(en.sets);en.sets.forEach((st,si)=>{if(!(st.w>0&&st.r>0))return;out.push({s,en,st,ex:exById(en.exId),pr:!!pr.map[s.id+"|"+ei+"|"+si],isTop:st===top})})})}
+  for(const s of ALLS()){s.entries.forEach((en,ei)=>{if(!ids.has(en.exId))return;const top=topSet(en.sets);en.sets.forEach((st,si)=>{if(!(st.w>0&&st.r>0))return;out.push({s,en,st,ex:exById(en.exId),pr:!!pr.map[s.id+"|"+ei+"|"+si],isTop:st===top})})})}
   return out;
 }
 function applyFilters(rows,skip){
@@ -556,7 +562,7 @@ function renderSearch(){
   }
   const rows=collectSets(q);const fr=applyFilters(rows);
   const notes=[];const ql=q.toLowerCase();
-  for(const s of S.sessions.slice().reverse())for(const en of s.entries)if(en.note&&en.note.toLowerCase().includes(ql)||(en.note&&matchEx(q).some(e=>e.id===en.exId)))notes.push({s,en});
+  for(const s of ALLS().slice().sort((a,b)=>b.date-a.date))for(const en of s.entries)if(en.note&&en.note.toLowerCase().includes(ql)||(en.note&&matchEx(q).some(e=>e.id===en.exId)))notes.push({s,en});
   const exs=matchEx(q);
   h+=`<div class="chips" role="group" aria-label="Result type" style="margin-bottom:12px">
     <button class="chip" aria-pressed="${ui.sTab==="sets"}" data-a="sTab" data-v="sets">Sets ${fr.length}</button>
@@ -594,7 +600,7 @@ function renderSearch(){
 /* ---------- exercise detail ---------- */
 function renderExercise(){
   const ex=exById(ui.exId);const who=ui.exWho||S.me;
-  const ss=S.sessions.filter(s=>s.user===who&&s.entries.some(e=>e.exId===ex.id));
+  const ss=ALLS().filter(s=>s.user===who&&s.entries.some(e=>e.exId===ex.id));
   const pts=ss.map(s=>({t:s.date,v:bestE(s.entries.find(e=>e.exId===ex.id).sets)})).filter(p=>p.v>0).slice(-12);
   const r=ui.exReturn||{};
   const backTo=r.tab==="workout"?(S.active?"Back to workout":"Workout"):r.tab==="templates"?"Back to template":r.tab==="settings"?"Settings":r.sheet==="session"?"Back to workout details":r.search?"Back to search":"Back to history";
@@ -602,7 +608,7 @@ function renderExercise(){
     <h1>${esc(ex.name)}</h1><div class="chips" role="group" aria-label="Variation" style="margin:10px 0 14px">${siblings(ex).map(v=>`<button class="vbtn" aria-pressed="${v.id===ex.id}" data-a="openEx" data-id="${v.id}" data-who="${who}">${esc(varLbl(v))}</button>`).join("")}</div>
     ${siblings(ex).length>1?`<div class="small faint" style="margin:-6px 0 12px">Each variation keeps its own history and PRs.</div>`:""}<div class="stack">
     ${setupBlock(ex)}
-    ${S.solo?"":`<div class="seg" role="group" aria-label="Whose history">${["d","p"].map(k=>`<button aria-pressed="${who===k}" data-a="exWho" data-v="${k}">${k===S.me?"Mine":esc(U(k).name)}</button>`).join("")}</div>`}`;
+    ${isSolo()?"":`<div class="seg" role="group" aria-label="Whose history">${["d","p"].map(k=>`<button aria-pressed="${who===k}" data-a="exWho" data-v="${k}">${k===S.me?"Mine":esc(U(k).name)}</button>`).join("")}</div>`}`;
   if(pts.length){
     const cur=pts[pts.length-1].v,first=pts[0].v,dv=Math.round(toDisp(cur-first,ex));
     h+=`<section class="card stack" style="gap:6px"><div class="between"><span class="eyebrow">Best est. max · last ${pts.length} sessions</span></div>
@@ -644,7 +650,7 @@ function renderTemplates(){
   let h=topbar("Templates");
   h+=`<div class="stack">`;
   if(!S.templates.some(t=>t.for===S.me))h+=`<div class="card muted small">Templates are workouts you repeat, like Upper 1 or Lower 2. Make one here, or finish any workout and choose to save it as a template.</div>`;
-  for(const who of S.solo?[S.me]:[S.me,other(S.me)]){
+  for(const who of [S.me]){
     const ts=S.templates.filter(t=>t.for===who);
     h+=`<h2 class="lbl" style="margin-top:4px">${who===S.me?"Yours":"For "+esc(U(who).name)}</h2>`;
     for(const t of ts)h+=`<button class="card tap" data-a="openTpl" data-id="${t.id}"><div class="between"><span style="font-weight:800;font-size:17px">${esc(t.name)}</span><span class="small muted">${t.items.length} exercise${t.items.length===1?"":"s"}</span></div>
@@ -710,6 +716,25 @@ function syncSection(){
     <button type="button" class="chip" style="align-self:center;border:0;background:none;color:var(--coral-text)" data-a="authMode">${up?"Already have an account? Sign in":"New here? Create an account"}</button>
   </form></section>`;
 }
+function partnerSection(){
+  if(!sb||!SY.user)return "";
+  const r=ui.pair;const err=r.err?`<div class="small" role="alert" style="color:var(--coral-fg)">${esc(r.err)}</div>`:"";
+  let body;
+  if(P.on)body=`<div class="row" style="gap:12px">${av("p",true)}<div style="min-width:0"><div style="font-weight:700">Paired with ${esc(P.name)}</div><div class="small muted" style="overflow-wrap:anywhere">${esc(P.email)}</div></div></div>
+    <div class="small muted">You can see each other's workouts in History, search and exercise charts. Neither of you can change the other's.</div>
+    <button class="btn btn-ghost btn-block" data-a="pairUnpair">${ui.confirmUnpair?"Tap again to unpair":"Unpair"}</button>`;
+  else if(P.incoming)body=`<div style="font-weight:800;font-size:17px">${esc(P.incoming.inviter_name||P.incoming.inviter_email)} wants to share workouts</div>
+    <div class="small muted">You'll each see the other's history. Nobody can change anyone else's workouts.</div>
+    <div class="grid2"><button class="btn btn-ghost" data-a="pairDecline" ${r.busy?"disabled":""}>Decline</button><button class="btn btn-coral" data-a="pairAccept" ${r.busy?"disabled":""}>Accept</button></div>`;
+  else if(P.invite)body=`<div style="font-weight:700">Invite sent to ${esc(P.invite.invitee_email)}</div>
+    <div class="small muted">Ask them to open Lift Log, sign in with that email, and accept it in Settings.</div>
+    <button class="btn btn-ghost btn-block" data-a="pairCancel" ${r.busy?"disabled":""}>Cancel invite</button>`;
+  else body=`<div style="font-weight:800;font-size:17px">Share workouts with your partner</div>
+    <div class="small muted">Enter the email they signed up with. They'll get the invite in their Settings.</div>
+    <label><span class="sr">Partner's email</span><input class="field" id="pair-email" type="email" inputmode="email" autocapitalize="off" autocomplete="off" data-in="pinv" value="${esc(r.email)}" placeholder="their@email.com" style="font-size:16px;height:46px"></label>
+    <button class="btn btn-coral btn-block" data-a="pairInvite" ${r.busy?"disabled":""}>${r.busy?"One sec…":"Send invite"}</button>`;
+  return `<section class="stack"><h2 class="lbl">Partner</h2><div class="card stack" style="gap:10px">${body}${err}</div></section>`;
+}
 function renderOnboard(){
   const me=U("d");
   return `<div class="onboard"><div class="mark" aria-hidden="true">${ICON.dumbbell}</div>
@@ -732,6 +757,7 @@ function renderSettings(){
       <button class="loadopt" aria-pressed="${(me.theme||"system")==="system"}" data-a="setTheme" data-v="system"><span>Match my phone</span><span>switches with your phone's setting</span></button>
       </section>
     ${syncSection()}
+    ${partnerSection()}
     <section class="stack"><h2 class="lbl">Your data</h2>
       <div class="card stack" style="gap:10px"><div class="small muted">${SY.user?"Sync already keeps a copy in your account. A backup file is an extra copy you control.":"Without sync, your workouts live on this phone only. Back up every week or so, and keep the file somewhere safe like iCloud Drive."}</div>
         <div class="small" style="font-weight:600">${S.lastBackup?`Last backup file: ${ago(S.lastBackup)}`:"No backup file yet"} · ${S.sessions.filter(s=>s.user===S.me).length} workouts logged</div>
@@ -763,7 +789,7 @@ function renderSheet(){
     const showBrand=f.equip.some(e=>BRANDED[e])||f.brand.length;
     h=`<div class="between"><h2 style="margin:0;font-size:22px">Filter &amp; sort</h2><button class="chip" style="border:0;background:none;color:var(--coral-text)" data-a="resetFilter">Reset</button></div>
     <fieldset><legend class="lbl eyebrow">Sort by</legend><div class="grid2">${Object.entries(SORTS).map(([k,l])=>`<button class="optbtn" aria-pressed="${ui.sort===k}" data-a="setSort" data-v="${k}">${l}</button>`).join("")}</div></fieldset>
-    ${S.solo?"":`<fieldset><legend class="eyebrow">Whose</legend>${whoseSeg("f",f.whose)}</fieldset>`}
+    ${isSolo()?"":`<fieldset><legend class="eyebrow">Whose</legend>${whoseSeg("f",f.whose)}</fieldset>`}
     <fieldset><legend class="eyebrow">Equipment</legend><div class="chips">${EQUIP.map(([k,l])=>{const c=eqCount[k]||0;const on=f.equip.includes(k);return `<button class="chip opt" aria-pressed="${on}" data-a="togEquip" data-v="${k}" ${!c&&!on?"disabled":""}>${l} · ${c}</button>`}).join("")}</div>
       ${showBrand?`<div class="chips" style="margin-top:4px">${Object.keys(brands).length?Object.entries(brands).map(([b,c])=>`<button class="chip opt" aria-pressed="${f.brand.includes(b)}" data-a="togBrand" data-v="${esc(b)}">${esc(b)} · ${c}</button>`).join(""):`<span class="small faint">No brands logged for these results</span>`}</div>`:`<div class="small faint">Pick Machine, Cable or Smith to filter by brand.</div>`}</fieldset>
     <fieldset><legend class="eyebrow">When</legend><div class="grid3" style="grid-template-columns:repeat(4,minmax(0,1fr))">${[["30","30 days"],["90","3 mo"],["365","Year"],["all","All"]].map(([k,l])=>`<button class="optbtn" aria-pressed="${f.when===k}" data-a="setWhen" data-v="${k}">${l}</button>`).join("")}</div></fieldset>
@@ -870,7 +896,7 @@ function renderSheet(){
       <button class="btn btn-ghost btn-block" data-a="closeSheet">Keep going</button>
       <button class="btn btn-block" style="background:transparent;color:var(--coral-fg);font-weight:600" data-a="discard">Discard workout</button>`,"Finish workout");
   }else if(k==="session"){
-    const s=S.sessions.find(x=>x.id===ui.sessionId);const pr=prMap();
+    const s=ALLS().find(x=>x.id===ui.sessionId);const pr=prMap();
     h=sheetWrap(`<div class="row">${av(s.user)}<div><div class="eyebrow">${dateLbl(s.date)} · ${Math.round((s.end-s.date)/60000)} min</div><h2 style="margin:0;font-size:24px">${esc(s.name)}</h2></div></div>
       ${s.entries.map((en,ei)=>{const ex=exById(en.exId);return `<button class="card tap stack" style="gap:6px" data-a="openEx" data-id="${ex.id}" data-who="${s.user}"><div class="between"><span style="font-weight:800">${esc(ex.name)}</span>${vpill(ex)}</div>
         ${en.sets.map((st,si)=>`<div class="between"><span>${st.type==="W"?`<span class="small" style="color:var(--warm);font-weight:800;margin-right:6px">W</span>`:""}${fmtSet(st,s.user,ex)}</span>${pr.map[s.id+"|"+ei+"|"+si]?`<span class="pr">PR</span>`:""}</div>`).join("")}
@@ -1041,11 +1067,16 @@ const ACT={
   setPlateStyle:d=>{U(S.me).plateStyle=d.v},
   obSignin:()=>{if(!(U("d").name||"").trim()){U("d").name="Lifter";U("d").initial="L"}S.onboarded=true;ui.tab="settings";ui.auth.mode="signin";ui.auth.err="";
     setTimeout(()=>{const e=$("#auth-email");e&&e.focus()},50)},
+  pairInvite:()=>{partnerAct("invite");return false},
+  pairCancel:()=>{partnerAct("cancel");return false},
+  pairAccept:()=>{partnerAct("accept");return false},
+  pairDecline:()=>{partnerAct("decline");return false},
+  pairUnpair:()=>{if(!ui.confirmUnpair){ui.confirmUnpair=true;setTimeout(()=>{ui.confirmUnpair=false;render()},5000);return}ui.confirmUnpair=false;partnerAct("unpair");return false},
   authMode:()=>{ui.auth.mode=ui.auth.mode==="signup"?"signin":"signup";ui.auth.err=""},
   syncNow:()=>{push();return false},
-  signOut:()=>{clearTimeout(SY.timer);sb.auth.signOut().finally(()=>{SY.user=null;setSync("off");render();toast("Signed out. Workouts stay on this phone")});return false},
+  signOut:()=>{clearTimeout(SY.timer);sb.auth.signOut().finally(()=>{SY.user=null;setSync("off");clearPartner();render();toast("Signed out. Workouts stay on this phone")});return false},
   erase:()=>{if(!ui.confirmErase){ui.confirmErase=true;setTimeout(()=>{ui.confirmErase=false;render()},5000);return}
-    ui.confirmErase=false;if(SY.user&&sb){clearTimeout(SY.timer);sb.auth.signOut();SY.user=null;setSync("off")}
+    ui.confirmErase=false;if(SY.user&&sb){clearTimeout(SY.timer);sb.auth.signOut();SY.user=null;setSync("off");clearPartner()}
     META={syncedAt:null,dirty:true};saveMeta();try{localStorage.removeItem(KEY)}catch(e){}S=seed();ui.rest=null;ui.sheet=null;ui.exId=null;ui.tplId=null;ui.tab="workout";toast("Everything erased")},
   backup:()=>{
     const data=JSON.stringify(S,null,1);const d=new Date();const name=`lift-log-backup-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}.json`;
@@ -1069,6 +1100,7 @@ document.addEventListener("input",ev=>{
     save();return}
   if(k==="note"){S.active.entries[el.dataset.e].note=el.value;save();return}
   if(k==="auth"){ui.auth[el.dataset.k]=el.value;return}
+  if(k==="pinv"){ui.pair.email=el.value;return}
   if(k==="wname"){S.active.name=el.value;save();return}
   if(k==="pltarget"){const P=ui.pl;const ex=exById(S.active.entries[P.e].exId);P.target=el.value;const v=parseFloat(el.value);
     if(!isNaN(v)){const r=platesFor(ex,v);P.plates=r.plates;P.miss=r.below?`That's less than the ${pbaseD(ex)} ${uLbl(ex)} starting weight.`:r.rem>0.01?`Can't hit ${v} exactly with these plates. Closest is ${plateTotal(ex,r.plates)} ${uLbl(ex)}.`:""}
@@ -1193,11 +1225,66 @@ async function initSync(){
   if(!sb)return;
   sb.auth.onAuthStateChange((ev,session)=>{
     const u=session&&session.user||null;const changed=(u&&u.id)!==(SY.user&&SY.user.id);SY.user=u;
-    if(changed)setTimeout(()=>{if(u){META.dirty=META.dirty||hasData(S);saveMeta();push()}else setSync("off");render()},0);
+    if(changed)setTimeout(()=>{if(u){META.dirty=META.dirty||hasData(S);saveMeta();push();loadPartner()}else{setSync("off");clearPartner()}render()},0);
   });
-  document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&SY.user)push()});
+  document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&SY.user){push();loadPartner()}});
   window.addEventListener("online",()=>{if(SY.user)push()});
 }
+/* ---------- partner pairing ---------- */
+function applyPartner(pk){
+  const d=pk.data||{};
+  P.on=true;P.id=pk.id;P.email=pk.email||"";
+  P.name=(d.users&&d.users.d&&d.users.d.name)||pk.name||(P.email.split("@")[0])||"Partner";
+  const mine=new Map(S.exercises.map(e=>[e.id,e]));const map={};PX=[];
+  for(const e of (d.exercises||[])){const m=mine.get(e.id);
+    if(m&&normName(m.name)===normName(e.name)&&m.equip===e.equip&&normBrand(m.brand)===normBrand(e.brand))map[e.id]=e.id;
+    else{const c=Object.assign({},e,{id:"p:"+e.id,partner:true});PX.push(c);map[e.id]=c.id}}
+  const known=new Set(S.exercises.map(e=>e.id).concat(PX.map(e=>e.id)));
+  P.sessions=(d.sessions||[]).filter(x=>x.user==="d").map(x=>Object.assign({},x,{id:"p:"+x.id,user:"p",
+    entries:(x.entries||[]).map(en=>Object.assign({},en,{exId:map[en.exId]||"p:"+en.exId})).filter(en=>known.has(en.exId))}))
+    .sort((a,b)=>a.date-b.date);
+  const u=S.users.p;u.name=P.name;u.initial=(P.name.trim()[0]||"P").toUpperCase();
+}
+function clearPartner(){P.on=false;P.id=null;P.rowId=null;P.sessions=[];PX=[];P.invite=null;P.incoming=null;
+  if(ui.whose!==S.me)ui.whose=S.me;if(ui.f.whose!==S.me)ui.f.whose=S.me;ui.exWho=null;
+  try{localStorage.removeItem(KEY+"-partner")}catch(e){}}
+async function loadPartner(){
+  if(!sb||!SY.user)return;
+  try{
+    const {data:rows,error}=await sb.from("partnerships").select("*");if(error)throw error;
+    const me=SY.user.id,myEmail=String(SY.user.email||"").toLowerCase();
+    const acc=rows.find(r=>r.status==="accepted");
+    P.invite=rows.find(r=>r.status==="pending"&&r.inviter===me)||null;
+    P.incoming=rows.find(r=>r.status==="pending"&&r.invitee_email===myEmail&&r.inviter!==me)||null;
+    if(acc){
+      const mineInv=acc.inviter===me;const pid=mineInv?acc.invitee:acc.inviter;
+      if(P.invite&&P.invite.id!==acc.id){sb.from("partnerships").delete().eq("id",P.invite.id).then(()=>{},()=>{});P.invite=null}
+      const {data:ud}=await sb.from("user_data").select("data").eq("user_id",pid).maybeSingle();
+      const pk={id:pid,email:mineInv?acc.invitee_email:acc.inviter_email,name:mineInv?"":acc.inviter_name,data:ud?ud.data:{}};
+      applyPartner(pk);P.rowId=acc.id;P.incoming=null;
+      try{localStorage.setItem(KEY+"-partner",JSON.stringify(Object.assign({rowId:acc.id},pk)))}catch(e){}
+    }else if(P.on){const inv=P.invite,inc=P.incoming;clearPartner();P.invite=inv;P.incoming=inc}
+  }catch(e){}
+  render();
+}
+async function partnerAct(kind){
+  const r=ui.pair;r.err="";r.busy=true;render();
+  try{
+    if(kind==="invite"){
+      const email=(r.email||"").trim().toLowerCase();
+      if(!/^\S+@\S+\.\S+$/.test(email))throw new Error("Enter their email address.");
+      if(email===String(SY.user.email||"").toLowerCase())throw new Error("That's your own email. Use theirs.");
+      const {error}=await sb.from("partnerships").insert({invitee_email:email,inviter_name:U("d").name||""});
+      if(error)throw new Error(/duplicate|unique/i.test(error.message)?"You already have an invite out. Cancel it first.":error.message);
+      r.email="";toast("Invite sent");
+    }else if(kind==="cancel"){await sb.from("partnerships").delete().eq("id",P.invite.id);toast("Invite canceled")}
+    else if(kind==="decline"){await sb.from("partnerships").delete().eq("id",P.incoming.id);toast("Invite declined")}
+    else if(kind==="accept"){const {error}=await sb.rpc("accept_partnership",{p_id:P.incoming.id});if(error)throw error;toast("Paired. You can now see each other's workouts")}
+    else if(kind==="unpair"){await sb.from("partnerships").delete().eq("id",P.rowId);clearPartner();toast("Unpaired")}
+  }catch(e){r.err=e&&e.message||"Something went wrong. Try again."}
+  r.busy=false;await loadPartner();
+}
+try{const c=JSON.parse(localStorage.getItem(KEY+"-partner")||"null");if(c){applyPartner(c);P.rowId=c.rowId||null}}catch(e){}
 document.addEventListener("submit",ev=>{if(ev.target.id==="auth-form"){ev.preventDefault();doAuth()}});
 
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
