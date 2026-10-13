@@ -108,6 +108,8 @@ h2.lbl{margin:0;font-size:12px;letter-spacing:.09em;text-transform:uppercase;col
 .toast button{margin-left:12px;background:transparent;border:0;color:var(--coral-text);font-weight:800;padding:4px 2px}
 .toast{display:flex;align-items:center}
 .toast[hidden]{display:none}
+.when-chip{align-self:flex-start;display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:0 12px;border-radius:18px;border:1px solid var(--line);background:var(--surface);color:var(--muted);font-size:14px;font-weight:600}
+.when-chip svg{color:var(--coral-text)}
 .plate-hint{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:0 0 2px 58px;padding:5px 6px 5px 12px;background:var(--surface2);border-radius:10px;font-size:13px;color:var(--muted);animation:up .15s ease-out}
 .plate-hint .chip{height:34px;flex-shrink:0}
 .pl-stage{position:relative;height:150px;border-radius:16px;background:var(--bg);border:1px solid var(--line);display:flex;align-items:center;padding:0 14px;gap:3px;overflow:hidden}
@@ -232,6 +234,7 @@ const ICON={
   dumbbell:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 8v8M18 8v8M3 10v4M21 10v4M6 12h12"/></svg>',
   clock:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
   list:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>',
+  cal:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>',
   more:'<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>',
   gear:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
   chev:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>',
@@ -356,6 +359,8 @@ function plateHint(ex,lbs){
   const sh=plateShort(ex,r.plates)+(r.rem>0.01?` + ${r.rem} extra`:"");
   return m==="both"?`Each side: ${sh}${b?` · bar ${b}`:""}`:m==="side"?`Per side: ${sh}`:`On the sleeve: ${sh}${b?` · starts at ${b}`:""}`;
 }
+function whenText(A){const d=new Date(A.start);
+  return d.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})+" · "+d.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})+(A.durMin?" · "+A.durMin+" min":"")}
 function setupBlock(ex){
   if(ui.editSetup===ex.id)return `<div class="row"><label style="flex:1"><span class="sr">Setup note for ${esc(exFull(ex))}</span><input class="field" id="setup-${ex.id}" data-in="setup" data-id="${ex.id}" value="${esc(ex.setup||"")}" placeholder="Seat 4, pin 3, rolled to top" style="font-size:15px;height:44px" enterkeyhint="done"></label>
     <button class="btn btn-coral" style="height:44px;padding:0 16px" data-a="doneSetup">Done</button></div>`;
@@ -427,17 +432,12 @@ function renderWorkout(){
 function renderActive(){
   const A=S.active;const pr=prMap();
   const E=!!A.editOf;
-  const pad=n=>String(n).padStart(2,"0");const sd=new Date(A.start);
   let h=E?`<div class="top sticky"><button class="chip" style="height:44px;border:0;background:transparent;color:var(--coral-text);padding:0 4px" data-a="cancelEdit">Cancel</button>
     <span class="eyebrow">Editing</span>
     <div class="row"><button class="add-ex" data-a="openPicker" data-target="active">+ Exercise</button>
     <button class="btn btn-coral" data-a="saveEdit" style="height:44px;padding:0 16px">Save</button></div></div>
-    <div class="card stack" style="gap:10px;margin-bottom:14px"><div class="grid3" style="grid-template-columns:1.3fr 1fr .8fr">
-      <label class="stack" style="gap:4px"><span class="eyebrow" style="font-size:11px">Date</span><input class="field" id="e-date" type="date" data-in="edate" value="${sd.getFullYear()}-${pad(sd.getMonth()+1)}-${pad(sd.getDate())}" style="height:44px;font-size:15px;padding:0 8px"></label>
-      <label class="stack" style="gap:4px"><span class="eyebrow" style="font-size:11px">Start</span><input class="field" id="e-time" type="time" data-in="etime" value="${pad(sd.getHours())}:${pad(sd.getMinutes())}" style="height:44px;font-size:15px;padding:0 8px"></label>
-      <label class="stack" style="gap:4px"><span class="eyebrow" style="font-size:11px">Minutes</span><input class="field" id="e-dur" inputmode="numeric" data-in="edur" value="${A.durMin||""}" style="height:44px;font-size:15px;padding:0 8px;text-align:center"></label></div>
-      <div class="small faint">Every set with weight and reps is saved. Checks don't matter here.</div></div>
-    <div style="margin-bottom:14px"><label class="title-edit"><span class="sr">Workout name</span><input id="wname" data-in="wname" value="${esc(A.name)}" autocomplete="off" enterkeyhint="done">${ICON.pen}</label></div><div class="stack">`
+    <div style="margin-bottom:16px;display:flex;flex-direction:column;gap:8px"><label class="title-edit"><span class="sr">Workout name</span><input id="wname" data-in="wname" value="${esc(A.name)}" autocomplete="off" enterkeyhint="done">${ICON.pen}</label>
+    <button class="when-chip" data-a="openWhen" aria-label="Change date and time: ${esc(whenText(A))}">${ICON.cal}<span>${esc(whenText(A))}</span></button></div><div class="stack">`
   :`<div class="top sticky"><div class="row"><button class="icon-btn" data-a="openFinish" aria-label="Workout options">${ICON.x}</button>
     <div class="num muted" id="elapsed">${mmss((Date.now()-A.start)/1000)}</div></div>
     <div class="row"><button class="add-ex" data-a="openPicker" data-target="active">+ Exercise</button>
@@ -860,6 +860,14 @@ function renderSheet(){
         <div class="small muted" style="margin:4px 0 10px">${esc(exFull(dup))}. Using it keeps all its history in one place.</div>
         <button class="btn btn-coral btn-block" data-a="pickEx" data-id="${dup.id}">Use ${esc(dup.name)} · ${esc(varLbl(dup))}</button></div>`
       :`<button class="btn btn-coral btn-block" data-a="saveEx">${ui.picker.target==="variant"?"Use this version":ui.picker.target==="active"?"Add to workout":"Add to template"}</button>`}`,"New exercise");
+  }else if(k==="when"){
+    const A=S.active;const pad=n=>String(n).padStart(2,"0");const sd=new Date(A.start);
+    h=sheetWrap(`<h2 style="margin:0;font-size:22px">When was this?</h2>
+      <label class="stack" style="gap:6px"><span class="eyebrow">Date</span><input class="field" id="e-date" type="date" data-in="edate" value="${sd.getFullYear()}-${pad(sd.getMonth()+1)}-${pad(sd.getDate())}" max="${(t=>t.getFullYear()+"-"+pad(t.getMonth()+1)+"-"+pad(t.getDate()))(new Date())}"></label>
+      <div class="grid2"><label class="stack" style="gap:6px"><span class="eyebrow">Started</span><input class="field" id="e-time" type="time" data-in="etime" value="${pad(sd.getHours())}:${pad(sd.getMinutes())}"></label>
+      <label class="stack" style="gap:6px"><span class="eyebrow">Length (min)</span><input class="field" id="e-dur" inputmode="numeric" data-in="edur" value="${A.durMin||""}" style="text-align:center"></label></div>
+      <div class="chips" role="group" aria-label="Quick length">${[30,45,60,75,90].map(m=>`<button class="chip" aria-pressed="${+A.durMin===m}" data-a="setDur" data-v="${m}">${m} min</button>`).join("")}</div>
+      <button class="btn btn-coral btn-block" data-a="closeSheet">Done</button>`,"Date and time");
   }else if(k==="exmenu"){
     const i=ui.menuE;const en=S.active.entries[i];const ex=exById(en.exId);const n=S.active.entries.length;const done=en.sets.filter(s=>s.done).length;
     h=sheetWrap(`<div><h2 style="margin:0;font-size:22px">${esc(ex.name)}</h2><div class="small muted" style="margin-top:2px">${esc(varLbl(ex))}</div></div>
@@ -1065,6 +1073,8 @@ const ACT={
     S.active=S.stash||null;delete S.stash;ui.tab="history";
     setTimeout(()=>toast("Workout deleted",{label:"Undo",a:"undoDelete"}),0)},
   undoDelete:()=>{const g=ui.undoDel;if(!g)return;S.sessions.push(g);S.sessions.sort((a,b)=>a.date-b.date);S.deleted=(S.deleted||[]).filter(x=>x!==g.id);ui.undoDel=null;$("#toast").hidden=true;toast("Workout restored")},
+  openWhen:()=>{ui.sheet="when"},
+  setDur:d=>{S.active.durMin=+d.v},
   exMenu:d=>{ui.menuE=+d.e;ui.sheet="exmenu"},
   exMove:d=>{const a=S.active.entries;const i=ui.menuE,j=i+(+d.d);if(j<0||j>=a.length)return;[a[i],a[j]]=[a[j],a[i]];ui.sheet=null;
     setTimeout(()=>{const s=document.getElementById("ex-"+j);s&&s.scrollIntoView({block:"start"})},30)},
