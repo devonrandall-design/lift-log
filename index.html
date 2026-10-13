@@ -322,8 +322,9 @@ const PL_LB=[[45,"p"],[35,"th"],[25,"q"],[10,"t"],[5,"f"],[2.5,"b"]];
 const PL_KG=[[25,""],[20,""],[15,""],[10,""],[5,""],[2.5,""],[1.25,""]];
 const PL_COL=["var(--coral)","var(--gold)","var(--mint)","var(--blue)","var(--muted)","var(--faint)","var(--line2)"];
 const plateSet=ex=>unitOf(ex)==="kg"?PL_KG:PL_LB;
-const plateable=ex=>ex.equip==="barbell"||ex.equip==="smith"||ex.load==="side"||!!ex.pmode;
-const pmode=ex=>ex.pmode||(ex.equip==="barbell"||ex.equip==="smith"?"both":ex.load==="side"?"side":"one");
+/* plate-loaded: barbells, Smith, per-side machines, and any machine marked as using plates (pendulum, hack, leg press…) */
+const plateable=ex=>ex.plates!==false&&(ex.equip==="barbell"||ex.equip==="smith"||ex.load==="side"||ex.plates===true||!!ex.pmode);
+const pmode=ex=>ex.pmode||(ex.equip==="barbell"||ex.equip==="smith"?"both":"side");
 function pbaseD(ex){if(pmode(ex)==="side")return 0;if(ex.base!=null)return toDisp(ex.base,ex);return ex.equip==="barbell"?(unitOf(ex)==="kg"?20:45):0}
 const pmult=ex=>pmode(ex)==="both"?2:1;
 function plateTotal(ex,plates){return Math.round((pbaseD(ex)+pmult(ex)*plates.reduce((a,b)=>a+b,0))*100)/100}
@@ -810,6 +811,7 @@ function renderSheet(){
         <label><span class="sr">New brand</span><input class="field" id="nx-brand" data-in="nx" data-k="brand" value="${esc(brands.includes(nx.brand)?"":nx.brand)}" placeholder="+ New brand" style="font-size:15px;height:44px"></label>
         ${brandHint?`<button class="chip" data-a="nxSet" data-k="brand" data-v="${esc(brandHint)}">Did you mean ${esc(brandHint)}?</button>`:""}</fieldset>`:""}
       ${BRANDED[nx.equip]||nx.equip==="barbell"?`<label class="stack" style="gap:6px"><span class="eyebrow">Setup note (optional)</span><input class="field" id="nx-setup" data-in="nx" data-k="setup" value="${esc(nx.setup||"")}" placeholder="Seat 4, pin 3, rolled to top" style="font-size:15px;height:44px"></label>`:""}
+      ${nx.equip==="machine"?`<fieldset><legend class="eyebrow">Loads with</legend><div class="seg">${[["1","Plates"],["0","Weight stack"]].map(([v,l])=>`<button aria-pressed="${(nx.plates==="0"?"0":"1")===v}" data-a="nxSet" data-k="plates" data-v="${v}">${l}</button>`).join("")}</div></fieldset>`:""}
       <fieldset><legend class="eyebrow">Plates are in</legend><div class="seg">${["lbs","kg"].map(x=>`<button aria-pressed="${(nx.unit||S.units)===x}" data-a="nxSet" data-k="unit" data-v="${x}">${x}</button>`).join("")}</div></fieldset>
       <fieldset><legend class="eyebrow">How it loads</legend><div class="stack" style="gap:6px">${Object.entries(LOADS).map(([k,[a,b]])=>`<button class="loadopt" aria-pressed="${nx.load===k}" data-a="nxSet" data-k="load" data-v="${k}"><span>${a}</span><span>${b}</span></button>`).join("")}</div></fieldset>
       <div class="grid2"><label class="stack" style="gap:6px"><span class="eyebrow">Rest (sec)</span><input class="field" id="nx-rest" inputmode="numeric" data-in="nx" data-k="rest" value="${esc(nx.rest)}" style="font-size:15px;height:44px"></label>
@@ -825,6 +827,7 @@ function renderSheet(){
         <button class="loadopt" data-a="exMove" data-d="-1" ${i===0?"disabled style='opacity:.4'":""}><span>Move up</span><span></span></button>
         <button class="loadopt" data-a="exMove" data-d="1" ${i===n-1?"disabled style='opacity:.4'":""}><span>Move down</span><span></span></button>
         <button class="loadopt" data-a="openVar" data-kind="active" data-i="${i}"><span>Switch version</span><span>machine, bar, dumbbell…</span></button>
+        ${ex.equip==="machine"?`<button class="loadopt" data-a="setPlates" data-id="${ex.id}" data-v="${plateable(ex)?0:1}"><span>${plateable(ex)?"Plate-loaded: on":"Plate-loaded: off"}</span><span>${plateable(ex)?"tap if it's a weight stack":"tap if you load plates"}</span></button>`:""}
         <button class="loadopt" data-a="exRemove" style="color:var(--coral-text)"><span>Remove from workout</span><span>${done?`${done} logged set${done>1?"s":""} too`:""}</span></button>
       </div>`,"Exercise options");
   }else if(k==="plates"){
@@ -992,6 +995,9 @@ const ACT={
   newEx:()=>{ui.nx={name:ui.picker.q,equip:"machine",brand:"",load:"total",rest:"120",muscle:""};ui.sheet="newex"},
   nxSet:d=>{ui.nx[d.k]=d.v;if(d.k==="equip"&&!BRANDED[d.v])ui.nx.brand=""},
   openVar:d=>{ui.varCtx={kind:d.kind,i:+d.i,prevTarget:ui.picker.target};ui.sheet="variant"},
+  setPlates:d=>{const ex=exById(d.id);const on=d.v==="1";ex.plates=on;if(!on)delete ex.pmode;
+    ui.sheet=null;toast(on?`${ex.name} set to plate-loaded`:`${ex.name} set to weight stack`);
+    if(on&&d.e!=null&&S.active&&S.active.entries[d.e]){setTimeout(()=>{ACT.openPlates({e:d.e,s:d.s});render()},0)}},
   exMenu:d=>{ui.menuE=+d.e;ui.sheet="exmenu"},
   exMove:d=>{const a=S.active.entries;const i=ui.menuE,j=i+(+d.d);if(j<0||j>=a.length)return;[a[i],a[j]]=[a[j],a[i]];ui.sheet=null;
     setTimeout(()=>{const s=document.getElementById("ex-"+j);s&&s.scrollIntoView({block:"start"})},30)},
@@ -1024,6 +1030,7 @@ const ACT={
     const knownBrand=S.exercises.find(e=>e.brand&&normBrand(e.brand)===normBrand(br));if(knownBrand)br=knownBrand.brand;
     const ex={id:uid(),name:canonName,equip:nx.equip,brand:br,load:nx.load,muscle:nx.muscle.trim()||"Other",rest:+nx.rest||120};
     if(nx.unit&&nx.unit!==S.units)ex.unit=nx.unit;
+    if(nx.equip==="machine")ex.plates=nx.plates!=="0";
     if(nx.setup&&nx.setup.trim())ex.setup=nx.setup.trim();
     S.exercises.push(ex);addToTarget(ex.id);return false},
   setMe:d=>{S.me=d.v;ui.exWho=null;ui.whose=d.v;ui.f.whose=d.v},
@@ -1077,7 +1084,15 @@ document.addEventListener("input",ev=>{
 /* plate hint: a quiet line under the weight you're typing, only on plate-loaded exercises */
 document.addEventListener("focusin",ev=>{
   const el=ev.target;if(!(el.dataset&&el.dataset.in==="set"&&el.dataset.f==="w"))return;
-  const en=S.active&&S.active.entries[el.dataset.e];if(!en)return;const ex=exById(en.exId);if(!plateable(ex))return;
+  const en=S.active&&S.active.entries[el.dataset.e];if(!en)return;const ex=exById(en.exId);
+  if(!plateable(ex)){
+    // a machine we haven't classified yet: ask once, quietly
+    if(ex.equip!=="machine"||ex.plates===false)return;
+    const old=$("#plate-hint");if(old&&old.dataset.for===el.id)return;if(old)old.remove();
+    const d=document.createElement("div");d.id="plate-hint";d.className="plate-hint";d.dataset.for=el.id;
+    d.innerHTML=`<span>Load this one with plates?</span><span class="row" style="gap:4px"><button class="chip" data-a="setPlates" data-id="${ex.id}" data-v="0" data-e="${el.dataset.e}" data-s="${el.dataset.s}">Stack</button><button class="chip" data-a="setPlates" data-id="${ex.id}" data-v="1" data-e="${el.dataset.e}" data-s="${el.dataset.s}">Plates</button></span>`;
+    el.closest(".sgrid").after(d);return;
+  }
   const old=$("#plate-hint");if(old&&old.dataset.for===el.id)return;if(old)old.remove();
   const d=document.createElement("div");d.id="plate-hint";d.className="plate-hint";d.dataset.for=el.id;
   d.innerHTML=`<span id="ph-text">${esc(plateHint(ex,en.sets[el.dataset.s].w))}</span><button class="chip" data-a="openPlates" data-e="${el.dataset.e}" data-s="${el.dataset.s}">Plates</button>`;
