@@ -426,7 +426,19 @@ function renderWorkout(){
 }
 function renderActive(){
   const A=S.active;const pr=prMap();
-  let h=`<div class="top sticky"><div class="row"><button class="icon-btn" data-a="openFinish" aria-label="Workout options">${ICON.x}</button>
+  const E=!!A.editOf;
+  const pad=n=>String(n).padStart(2,"0");const sd=new Date(A.start);
+  let h=E?`<div class="top sticky"><button class="chip" style="height:44px;border:0;background:transparent;color:var(--coral-text);padding:0 4px" data-a="cancelEdit">Cancel</button>
+    <span class="eyebrow">Editing</span>
+    <div class="row"><button class="add-ex" data-a="openPicker" data-target="active">+ Exercise</button>
+    <button class="btn btn-coral" data-a="saveEdit" style="height:44px;padding:0 16px">Save</button></div></div>
+    <div class="card stack" style="gap:10px;margin-bottom:14px"><div class="grid3" style="grid-template-columns:1.3fr 1fr .8fr">
+      <label class="stack" style="gap:4px"><span class="eyebrow" style="font-size:11px">Date</span><input class="field" id="e-date" type="date" data-in="edate" value="${sd.getFullYear()}-${pad(sd.getMonth()+1)}-${pad(sd.getDate())}" style="height:44px;font-size:15px;padding:0 8px"></label>
+      <label class="stack" style="gap:4px"><span class="eyebrow" style="font-size:11px">Start</span><input class="field" id="e-time" type="time" data-in="etime" value="${pad(sd.getHours())}:${pad(sd.getMinutes())}" style="height:44px;font-size:15px;padding:0 8px"></label>
+      <label class="stack" style="gap:4px"><span class="eyebrow" style="font-size:11px">Minutes</span><input class="field" id="e-dur" inputmode="numeric" data-in="edur" value="${A.durMin||""}" style="height:44px;font-size:15px;padding:0 8px;text-align:center"></label></div>
+      <div class="small faint">Every set with weight and reps is saved. Checks don't matter here.</div></div>
+    <div style="margin-bottom:14px"><label class="title-edit"><span class="sr">Workout name</span><input id="wname" data-in="wname" value="${esc(A.name)}" autocomplete="off" enterkeyhint="done">${ICON.pen}</label></div><div class="stack">`
+  :`<div class="top sticky"><div class="row"><button class="icon-btn" data-a="openFinish" aria-label="Workout options">${ICON.x}</button>
     <div class="num muted" id="elapsed">${mmss((Date.now()-A.start)/1000)}</div></div>
     <div class="row"><button class="add-ex" data-a="openPicker" data-target="active">+ Exercise</button>
     <button class="btn btn-coral" data-a="openFinish" style="height:44px;padding:0 16px">Finish</button></div></div>
@@ -434,7 +446,7 @@ function renderActive(){
     <label class="title-edit"><span class="sr">Workout name</span><input id="wname" data-in="wname" value="${esc(A.name)}" autocomplete="off" enterkeyhint="done">${ICON.pen}</label></div><div class="stack">`;
   const effortHead=U(A.user).effort==="rpe"?"RPE":"Reps left";
   A.entries.forEach((en,ei)=>{
-    const ex=exById(en.exId);const L=lastEntry(A.user,en.exId);
+    const ex=exById(en.exId);const L=lastEntry(A.user,en.exId,A.editOf?A.start:undefined);
     const lt=L&&topSet(L.e.sets);
     const doneW=en.sets.filter(s=>s.done&&s.type!=="W");
     const curBest=bestE(doneW),lastBest=L?bestE(L.e.sets):0;
@@ -474,6 +486,7 @@ function renderActive(){
     </section>`;
   });
   h+=`<button class="btn-dash" data-a="openPicker" data-target="active">+ Add exercise</button></div>`;
+  if(E)h+=`<button class="btn btn-block" style="margin-top:22px;background:transparent;border:1px solid var(--line2);color:var(--coral-fg);font-weight:600" data-a="deleteWorkout" data-id="${A.editOf}">${ui.confirmDel?"Tap again to delete this workout":"Delete workout"}</button>`;
   return h;
 }
 
@@ -904,7 +917,8 @@ function renderSheet(){
     h=sheetWrap(`<div class="row">${av(s.user)}<div><div class="eyebrow">${dateLbl(s.date)} · ${Math.round((s.end-s.date)/60000)} min</div><h2 style="margin:0;font-size:24px">${esc(s.name)}</h2></div></div>
       ${s.entries.map((en,ei)=>{const ex=exById(en.exId);return `<button class="card tap stack" style="gap:6px" data-a="openEx" data-id="${ex.id}" data-who="${s.user}"><div class="between"><span style="font-weight:800">${esc(ex.name)}</span>${vpill(ex)}</div>
         ${en.sets.map((st,si)=>`<div class="between"><span>${st.type==="W"?`<span class="small" style="color:var(--warm);font-weight:800;margin-right:6px">W</span>`:""}${fmtSet(st,s.user,ex)}</span>${pr.map[s.id+"|"+ei+"|"+si]?`<span class="pr">PR</span>`:""}</div>`).join("")}
-        ${en.note?`<div class="note">${esc(en.note)}</div>`:""}</button>`}).join("")}`,"Workout details");
+        ${en.note?`<div class="note">${esc(en.note)}</div>`:""}</button>`}).join("")}
+      ${s.user===S.me&&!String(s.id).startsWith("p:")?`<button class="btn btn-coral btn-block" data-a="editSession" data-id="${s.id}">Edit workout</button>`:""}`,"Workout details");
   }
   $("#sheet").innerHTML=h;
 }
@@ -984,7 +998,7 @@ const ACT={
     if(!s.done){const L=lastEntry(S.active.user,en.exId);const ph=L&&(L.e.sets[d.s]||topSet(L.e.sets));
       if(s.w===""&&ph)s.w=ph.w;if(s.r===""&&ph)s.r=ph.r;if(s.left===""&&s.type!=="W"&&ph&&ph.left!=="")s.left=ph.left;
       if(s.w===""||!(s.r>0)){toast("Add weight and reps first");return}
-      s.done=true;const rest=exById(en.exId).rest||120;if(s.type!=="W")ui.rest={end:Date.now()+rest*1000}}
+      s.done=true;const rest=exById(en.exId).rest||120;if(s.type!=="W"&&!S.active.editOf)ui.rest={end:Date.now()+rest*1000}}
     else s.done=false},
   addSet:d=>{const en=S.active.entries[d.e];const last=en.sets[en.sets.length-1];en.sets.push({w:last?last.w:"",r:"",left:"",type:"N",done:false})},
   toggleNote:d=>{const en=S.active.entries[d.e];en.showNote=!en.showNote;setTimeout(()=>{const t=document.getElementById("note-"+d.e);t&&t.focus()},0)},
@@ -1033,6 +1047,24 @@ const ACT={
     if(on&&d.e!=null&&S.active&&S.active.entries[d.e]){setTimeout(()=>{ACT.openPlates({e:d.e,s:d.s});render()},0)}},
   markAllDone:d=>{const list=pendingSets(S.active,d&&d.e!=null&&d.e!==""?+d.e:null);list.forEach(st=>st.done=true);
     if(d&&d.e!=null&&d.e!==""){ui.sheet=null}toast(list.length?`Marked ${list.length} set${list.length>1?"s":""} done`:"Nothing to mark: add weight and reps first")},
+  editSession:d=>{const sx=S.sessions.find(x=>x.id===d.id);if(!sx)return;
+    if(S.active&&!S.active.editOf)S.stash=S.active;
+    S.active={editOf:sx.id,user:sx.user,name:sx.name,start:sx.date,durMin:Math.max(1,Math.round((sx.end-sx.date)/60000)),
+      entries:sx.entries.map(en=>({exId:en.exId,note:en.note||"",sets:en.sets.map(st=>Object.assign({},st,{done:true}))}))};
+    ui.sheet=null;ui.exId=null;ui.rest=null;ui.tab="workout";ui.confirmDel=false;window.scrollTo(0,0)},
+  cancelEdit:()=>{const id=S.active.editOf;S.active=S.stash||null;delete S.stash;ui.tab="history";ui.sessionId=id;ui.sheet="session";toast("No changes made")},
+  saveEdit:()=>{const A=S.active;const sx=S.sessions.find(x=>x.id===A.editOf);
+    const entries=A.entries.map(en=>({exId:en.exId,note:en.note||"",sets:en.sets.filter(st=>st.w!==""&&st.w!=null&&+st.r>0).map(st=>({w:+st.w,r:+st.r,left:st.left===""?"":+st.left,type:st.type}))})).filter(e=>e.sets.length);
+    if(!entries.length){toast("Add at least one set with weight and reps, or delete the workout");return}
+    if(sx){sx.name=(A.name||"").trim()||"Workout";sx.date=A.start;sx.end=A.start+Math.max(1,+A.durMin||1)*60000;sx.entries=entries}
+    S.sessions.sort((a,b)=>a.date-b.date);
+    S.active=S.stash||null;delete S.stash;ui.tab="history";ui.sessionId=A.editOf;ui.sheet="session";toast("Changes saved")},
+  deleteWorkout:d=>{if(!ui.confirmDel){ui.confirmDel=true;setTimeout(()=>{ui.confirmDel=false;render()},5000);return}
+    ui.confirmDel=false;const i=S.sessions.findIndex(x=>x.id===d.id);if(i<0)return;
+    const gone=S.sessions.splice(i,1)[0];S.deleted=(S.deleted||[]).concat(gone.id);ui.undoDel=gone;
+    S.active=S.stash||null;delete S.stash;ui.tab="history";
+    setTimeout(()=>toast("Workout deleted",{label:"Undo",a:"undoDelete"}),0)},
+  undoDelete:()=>{const g=ui.undoDel;if(!g)return;S.sessions.push(g);S.sessions.sort((a,b)=>a.date-b.date);S.deleted=(S.deleted||[]).filter(x=>x!==g.id);ui.undoDel=null;$("#toast").hidden=true;toast("Workout restored")},
   exMenu:d=>{ui.menuE=+d.e;ui.sheet="exmenu"},
   exMove:d=>{const a=S.active.entries;const i=ui.menuE,j=i+(+d.d);if(j<0||j>=a.length)return;[a[i],a[j]]=[a[j],a[i]];ui.sheet=null;
     setTimeout(()=>{const s=document.getElementById("ex-"+j);s&&s.scrollIntoView({block:"start"})},30)},
@@ -1109,6 +1141,11 @@ document.addEventListener("input",ev=>{
   if(k==="note"){S.active.entries[el.dataset.e].note=el.value;save();return}
   if(k==="auth"){ui.auth[el.dataset.k]=el.value;return}
   if(k==="pinv"){ui.pair.email=el.value;return}
+  if(k==="edate"||k==="etime"){const A=S.active;const d=new Date(A.start);
+    if(k==="edate"&&/^\d{4}-\d{2}-\d{2}$/.test(el.value)){const [y,m,dd]=el.value.split("-").map(Number);d.setFullYear(y,m-1,dd)}
+    if(k==="etime"&&/^\d{2}:\d{2}/.test(el.value)){const [hh,mm]=el.value.split(":").map(Number);d.setHours(hh,mm,0,0)}
+    A.start=d.getTime();save();return}
+  if(k==="edur"){S.active.durMin=parseInt(el.value,10)||"";save();return}
   if(k==="wname"){S.active.name=el.value;save();return}
   if(k==="pltarget"){const P=ui.pl;const ex=exById(S.active.entries[P.e].exId);P.target=el.value;const v=parseFloat(el.value);
     if(!isNaN(v)){const r=platesFor(ex,v);P.plates=r.plates;P.miss=r.below?`That's less than the ${pbaseD(ex)} ${uLbl(ex)} starting weight.`:r.rem>0.01?`Can't hit ${v} exactly with these plates. Closest is ${plateTotal(ex,r.plates)} ${uLbl(ex)}.`:""}
@@ -1158,10 +1195,11 @@ function setSync(st,err){SY.status=st;SY.err=err||"";if(st==="synced")SY.at=Date
   document.querySelectorAll(".sync-dot").forEach(d=>{if(SY.user)d.className="sync-dot s-"+st})}
 function schedulePush(){if(!sb||!SY.user)return;clearTimeout(SY.timer);SY.timer=setTimeout(push,2000)}
 function persistLocal(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
-function mergeArr(a,b){const ids=new Set((a||[]).map(x=>x.id));return (a||[]).concat((b||[]).filter(x=>x&&!ids.has(x.id)))}
+function mergeArr(a,b,dead){const ids=new Set((a||[]).map(x=>x.id));const gone=new Set(dead||[]);return (a||[]).concat((b||[]).filter(x=>x&&!ids.has(x.id))).filter(x=>!gone.has(x.id))}
 function mergeState(local,cloud){
   const out=Object.assign({},cloud,local);
-  out.sessions=mergeArr(local.sessions,cloud.sessions).sort((x,y)=>x.date-y.date);
+  out.deleted=[...new Set([].concat(local.deleted||[],cloud.deleted||[]))];
+  out.sessions=mergeArr(local.sessions,cloud.sessions,out.deleted).sort((x,y)=>x.date-y.date);
   out.exercises=mergeArr(local.exercises,cloud.exercises);
   out.templates=mergeArr(local.templates,cloud.templates);
   out.active=local.active||cloud.active||null;
