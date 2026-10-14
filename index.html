@@ -87,14 +87,16 @@ h2.lbl{margin:0;font-size:12px;letter-spacing:.09em;text-transform:uppercase;col
 .btn{height:48px;border-radius:24px;border:0;padding:0 20px;font-weight:800;font-size:15px}
 .btn-coral{background:var(--coral);color:var(--ink)}
 .btn-ghost{background:transparent;border:1px solid var(--line2);color:var(--fg);font-weight:600}
-.btn-dash{background:transparent;border:1px dashed var(--line2);color:var(--muted);font-weight:600;border-radius:14px;height:46px;width:100%}
+.btn-dash{background:transparent;border:1px dashed var(--line2);color:var(--fg);font-weight:700;font-size:15px;border-radius:14px;min-height:52px;width:100%}
 .btn-block{width:100%}
 .icon-btn{width:44px;height:44px;border-radius:22px;border:1px solid var(--line);background:var(--surface);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--fg)}
 .seg{display:flex;background:var(--surface);border-radius:14px;padding:4px;gap:4px}
 .seg button{flex:1;height:38px;border-radius:10px;border:0;background:transparent;color:var(--muted);font-weight:600;font-size:14px}
 .seg button[aria-pressed="true"]{background:var(--fg);color:var(--on-fg);font-weight:800}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
-.chip{height:36px;padding:0 14px;border-radius:18px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font-weight:600;font-size:13px;display:inline-flex;align-items:center;gap:6px}
+.chip{height:36px;}
+.chip.chip-add{height:44px;padding:0 16px;font-size:14px;border-radius:22px}
+.chip{padding:0 14px;border-radius:18px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font-weight:600;font-size:13px;display:inline-flex;align-items:center;gap:6px}
 .chip[aria-pressed="true"]{background:var(--coral);border-color:var(--coral);color:var(--ink);font-weight:800}
 .chip:disabled{opacity:.4;border-style:dashed;cursor:default}
 .chip-x{background:var(--coral-soft);border-color:transparent;color:var(--coral-fg)}
@@ -133,7 +135,7 @@ h2.lbl{margin:0;font-size:12px;letter-spacing:.09em;text-transform:uppercase;col
 .setup{display:flex;align-items:center;gap:10px;background:var(--surface2);border:0;border-radius:12px;padding:10px 12px;font-size:14px;color:var(--fg);text-align:left;width:100%}
 .setup svg{color:var(--faint);flex-shrink:0}
 .vpill{display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:12px;background:var(--coral-soft);color:var(--coral-fg);font-size:12px;font-weight:700;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
-.vbtn{min-height:38px;border:1px solid var(--coral);background:var(--coral-soft);color:var(--coral-fg);border-radius:19px;padding:0 12px;font-weight:700;font-size:13px;display:inline-flex;gap:6px;align-items:center;text-align:left}
+.vbtn{min-height:44px;border:1px solid var(--coral);background:var(--coral-soft);color:var(--coral-fg);border-radius:19px;padding:0 12px;font-weight:700;font-size:13px;display:inline-flex;gap:6px;align-items:center;text-align:left}
 .vbtn[aria-pressed="false"]{background:transparent;border-color:var(--line2);color:var(--fg)}
 .tag{font-size:12px;font-weight:600;padding:3px 8px;border-radius:6px;background:var(--surface2);color:var(--muted)}
 .pr{font-size:11px;font-weight:800;color:var(--ink);background:var(--gold);padding:2px 7px;border-radius:5px;letter-spacing:.03em}
@@ -194,7 +196,7 @@ textarea{width:100%;min-height:64px;border-radius:12px;border:1px solid var(--li
 .unit-tg.kg{border:1px solid var(--blue);color:var(--blue);background:transparent}
 .tabbar button[aria-current="page"]{color:var(--coral-text);font-weight:800}
 .top.sticky{position:sticky;top:env(safe-area-inset-top,0px);z-index:15;background:var(--bg);margin-inline:-16px;padding:8px 16px;margin-top:-8px;border-bottom:1px solid transparent}
-.add-ex{height:44px;padding:0 14px;border-radius:22px;border:1px solid var(--line2);background:var(--surface);color:var(--fg);font-weight:700;font-size:14px;white-space:nowrap}
+.add-ex{height:46px;padding:0 14px;border-radius:22px;border:1px solid var(--line2);background:var(--surface);color:var(--fg);font-weight:700;font-size:14px;white-space:nowrap}
 .rest{position:fixed;left:0;right:0;bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:21;padding:0 16px}
 .rest > div{max-width:408px;margin:0 auto;height:64px;border-radius:32px;background:var(--coral);color:var(--ink);display:flex;align-items:center;justify-content:space-between;padding:0 8px 0 22px;box-shadow:0 12px 32px rgba(0,0,0,.5)}
 .rest .num{font-size:24px;font-weight:700}
@@ -395,7 +397,7 @@ function setupBlock(ex){
   if(ui.editSetup===ex.id)return `<div class="row"><label style="flex:1"><span class="sr">Setup note for ${esc(exFull(ex))}</span><input class="field" id="setup-${ex.id}" data-in="setup" data-id="${ex.id}" value="${esc(ex.setup||"")}" placeholder="Seat 4, pin 3, rolled to top" style="font-size:15px;height:44px" enterkeyhint="done"></label>
     <button class="btn btn-coral" style="height:44px;padding:0 16px" data-a="doneSetup">Done</button></div>`;
   if(ex.setup)return `<button class="setup" data-a="editSetup" data-id="${ex.id}" aria-label="Setup: ${esc(ex.setup)}. Tap to edit"><span class="eyebrow" style="font-size:11px">Setup</span><span style="flex:1;min-width:0">${esc(ex.setup)}</span>${ICON.pen}</button>`;
-  return BRANDED[ex.equip]||ex.equip==="barbell"?`<button class="chip" style="height:34px;border-style:dashed;align-self:flex-start" data-a="editSetup" data-id="${ex.id}">+ Setup note (seat, pins, position)</button>`:"";
+  return BRANDED[ex.equip]||ex.equip==="barbell"?`<button class="chip chip-add" style="border-style:dashed;align-self:flex-start" data-a="editSetup" data-id="${ex.id}">+ Setup note (seat, pins, position)</button>`:"";
 }
 function vpill(ex){return `<span class="vpill">${esc(varLbl(ex))}</span>`}
 function dateLbl(t){
@@ -742,7 +744,7 @@ function renderTemplate(){
       <button class="vbtn" style="margin-top:6px" data-a="openVar" data-kind="tpl" data-i="${i}" aria-label="Variation: ${esc(varLbl(ex))}. Tap to switch">${esc(varLbl(ex))}${ICON.chev}</button></div>
       <button class="chip" data-a="toggleCore" data-i="${i}" aria-pressed="${it.core}" style="${it.core?"background:var(--mint);border-color:var(--mint);color:var(--ink)":""}">${it.core?"Core":"Cut if short"}</button></div>
       ${it.subs.length?`<div class="row small" style="color:var(--coral-fg);background:var(--coral-soft);border-radius:10px;padding:8px 10px">${ICON.swap}If taken, swap: ${it.subs.map(s=>esc(exFull(exById(s)))).join(" or ")}</div>`:""}
-      <div class="row"><button class="chip" data-a="addSub" data-i="${i}">${ICON.swap}Add swap</button><button class="chip" data-a="rmItem" data-i="${i}" aria-label="Remove ${esc(ex.name)}">${ICON.trash}</button></div></div>`;
+      <div class="row"><button class="chip chip-add" data-a="addSub" data-i="${i}">${ICON.swap}Add swap</button><button class="chip chip-add" data-a="rmItem" data-i="${i}" aria-label="Remove ${esc(ex.name)}">${ICON.trash}</button></div></div>`;
   });
   h+=`<button class="btn-dash" data-a="openPicker" data-target="tpl">+ Add exercise</button>`;
   h+=t.for===S.me?`<button class="btn btn-coral btn-block" data-a="start" data-id="${t.id}">Start ${sh?"short ":""}workout</button>`:`<button class="btn btn-coral btn-block" data-a="sendTpl">Send to ${esc(U(t.for).name)}</button>`;
@@ -824,7 +826,7 @@ function renderSettings(){
     <section class="row" style="gap:16px">
       <button class="avatar av-lg ${me.photo?"has-photo":""}" data-a="photoPick" aria-label="${me.photo?"Change profile photo":"Add profile photo"}" style="background:${me.color}">${avInner(S.me)}<span class="av-edit" aria-hidden="true">${ICON.pen}</span></button>
       <div class="stack" style="gap:8px;min-width:0"><div style="font-weight:800;font-size:19px;overflow-wrap:anywhere">${esc(me.name)}</div>
-        <div class="row" style="gap:6px;flex-wrap:wrap"><button class="chip" data-a="photoPick">${me.photo?"Change photo":"Add photo"}</button>${me.photo?`<button class="chip" data-a="photoRemove">Remove</button>`:""}</div></div>
+        <div class="row" style="gap:6px;flex-wrap:wrap"><button class="chip chip-add" data-a="photoPick">${me.photo?"Change photo":"Add photo"}</button>${me.photo?`<button class="chip chip-add" data-a="photoRemove">Remove</button>`:""}</div></div>
       <input type="file" id="photo-file" accept="image/*" data-in="photofile" class="sr" tabindex="-1" aria-hidden="true">
     </section>
     <section class="stack"><h2 class="lbl">Look for ${esc(me.name)}</h2>
@@ -889,7 +891,7 @@ function renderSheet(){
       <button class="btn btn-coral btn-block" data-a="newEx">+ Create ${q?`"${esc(ui.picker.q)}"`:"new exercise"}</button>
       <div class="small faint">Pick the exact version. Each one keeps its own history.</div>
       <div class="stack" style="gap:8px">${gl.map(vs=>{vs.sort((a,b)=>lastUse(b)-lastUse(a));return `<div class="card stack" style="gap:8px;padding:12px 14px"><div class="between"><span style="font-weight:800">${esc(vs[0].name)}</span><span class="small faint">${esc(vs[0].muscle)}</span></div>
-        <div class="chips">${vs.map(v=>`<button class="vbtn" aria-pressed="true" data-a="pickEx" data-id="${v.id}" aria-label="Add ${esc(exFull(v))}">${esc(varLbl(v))}</button>`).join("")}<button class="chip" data-a="newExNamed" data-name="${esc(vs[0].name)}" style="height:38px;border-style:dashed">+ Other</button></div></div>`}).join("")}</div>`,"Add exercise");
+        <div class="chips">${vs.map(v=>`<button class="vbtn" aria-pressed="true" data-a="pickEx" data-id="${v.id}" aria-label="Add ${esc(exFull(v))}">${esc(varLbl(v))}</button>`).join("")}<button class="chip chip-add" data-a="newExNamed" data-name="${esc(vs[0].name)}" style="border-style:dashed">+ Other</button></div></div>`}).join("")}</div>`,"Add exercise");
   }else if(k==="variant"){
     const c=ui.varCtx;const tpl=c.kind==="tpl"&&S.templates.find(x=>x.id===ui.tplId);
     const cur=exById(c.kind==="active"?S.active.entries[c.i].exId:tpl.items[c.i].exId);
@@ -1003,19 +1005,42 @@ function renderSheet(){
         ${en.note?`<div class="note">${esc(en.note)}</div>`:""}</button>`}).join("")}
       ${s.user===S.me&&!String(s.id).startsWith("p:")?`<button class="btn btn-coral btn-block" data-a="editSession" data-id="${s.id}">Edit workout</button>`:""}`,"Workout details");
   }
-  $("#sheet").innerHTML=h;
+  morph($("#sheet"),h);
 }
 
+/* ---------- in-place DOM patching ----------
+   Rendering rebuilds HTML, then only changed nodes are touched. Inputs keep
+   their node, focus and caret, so the iPhone keyboard never closes and reopens. */
+function morph(target,html){const t=document.createElement("template");t.innerHTML=html;patchKids(target,t.content)}
+function sameNode(a,b){return a.nodeType===b.nodeType&&a.nodeName===b.nodeName&&(a.nodeType!==1||(a.id||"")===(b.id||""))}
+function patchAttrs(o,n){
+  for(const a of [...o.attributes])if(!n.hasAttribute(a.name))o.removeAttribute(a.name);
+  for(const a of [...n.attributes])if(o.getAttribute(a.name)!==a.value)o.setAttribute(a.name,a.value);
+  if(o.tagName==="INPUT"&&o.type!=="file"&&o!==document.activeElement){
+    if(o.type==="checkbox"||o.type==="radio")o.checked=n.hasAttribute("checked");
+    else{const v=n.getAttribute("value")||"";if(o.value!==v)o.value=v}}
+}
+function patchKids(par,src){
+  const olds=[...par.childNodes].filter(x=>x.id!=="plate-hint"),news=[...src.childNodes];let i=0;
+  for(;i<news.length;i++){const n=news[i],o=olds[i];
+    if(!o){par.appendChild(n);continue}
+    if(!sameNode(o,n)){par.replaceChild(n,o);continue}
+    if(o.nodeType!==1){if(o.nodeValue!==n.nodeValue)o.nodeValue=n.nodeValue;continue}
+    patchAttrs(o,n);
+    if(o.tagName==="TEXTAREA"){if(o!==document.activeElement&&o.value!==n.value)o.value=n.value;continue}
+    patchKids(o,n)}
+  for(let j=olds.length-1;j>=news.length;j--)if(olds[j].parentNode===par)par.removeChild(olds[j]);
+}
 /* ---------- main render ---------- */
 function render(){
   const a=document.activeElement;const id=a&&a.id;let ss=null,se=null;try{ss=a.selectionStart;se=a.selectionEnd}catch(e){}
   applyTheme();
   const root=$("#root");
   $("#tabs").hidden=!S.onboarded;
-  root.innerHTML=!S.onboarded?renderOnboard():ui.exId?renderExercise():ui.tab==="workout"?renderWorkout():ui.tab==="history"?renderHistory():ui.tab==="settings"?renderSettings():renderTemplates();
+  morph(root,!S.onboarded?renderOnboard():ui.exId?renderExercise():ui.tab==="workout"?renderWorkout():ui.tab==="history"?renderHistory():ui.tab==="settings"?renderSettings():renderTemplates());
   $("#tabs").innerHTML=`<nav aria-label="Main">${[["workout","Workout",ICON.dumbbell],["history","History",ICON.clock],["templates","Templates",ICON.list],["settings","Settings",ICON.gear]].map(([k,l,i])=>`<button data-a="tab" data-v="${k}" ${ui.tab===k?'aria-current="page"':""}>${i}${l}</button>`).join("")}</nav>`;
   renderRest();renderSheet();
-  if(id){const el=document.getElementById(id);if(el){el.focus({preventScroll:true});try{if(ss!=null)el.setSelectionRange(ss,se)}catch(e){}}}
+  if(id&&document.activeElement&&document.activeElement.id!==id){const el=document.getElementById(id);if(el){el.focus({preventScroll:true});try{if(ss!=null)el.setSelectionRange(ss,se)}catch(e){}}}
 }
 function renderRest(){
   const r=ui.rest;
