@@ -28,6 +28,12 @@ Web apps can't read Apple Health, so this needs one of:
 2. **Native wrapper with Capacitor** (~a day, $99/yr Apple Developer): reads heart rate/calories automatically and writes sessions to Health for Fitness rings. Built in Xcode, installed via TestFlight (re-upload every 90 days).
 3. **Real Apple Watch app** (weeks): log sets and run the rest timer from the wrist.
 
+### Renaming the app (pocketed Oct 14)
+- **Display name** (home-screen label, welcome screen, tab title): a 2-minute code change. Keep it to about 12 characters so iPhone doesn't cut it off. Each person removes and re-adds the home-screen icon to see it; check Sync says "Up to date" first, then sign back in.
+- **Web address**: rename the Vercel project for a free `name.vercel.app`, or buy a custom domain (~$10–15/yr). Same reinstall-and-sign-in.
+- **Repo and Supabase project names**: cosmetic, optional.
+- Could pair with a new icon.
+
 ## Features
 
 - **"Working out now" for your partner**: a live card when the other person is mid-workout ("DeVon is lifting · Upper 1 · 38 min · on Bench Press"). Builds on the green online dot. ~30 min.
