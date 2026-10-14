@@ -13,3 +13,10 @@ phone first, then copies to that person's own row in the Supabase `user_data` ta
 Row-level security only lets a signed-in user read or write their own row.
 
 Deployed on Vercel as a static site, no build step.
+
+## Partners
+
+Two accounts can pair (Settings → Partner). Once paired, each can read the other's
+workouts (read-only), see when the other has the app open (`presence`), and react to
+the other's workouts with 👍 ❤️ 💪 (`reactions`). Row-level security keeps all of this
+between the two paired accounts.

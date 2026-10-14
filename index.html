@@ -173,6 +173,20 @@ mark{background:var(--gold-bg);color:var(--gold-text);border-radius:3px;padding:
 .crop-wrap{display:flex;justify-content:center}
 .crop{position:relative;width:240px;height:240px;border-radius:50%;overflow:hidden;background:var(--surface2);touch-action:none;cursor:grab;box-shadow:0 0 0 3px var(--coral)}
 .crop img{position:absolute;max-width:none;user-select:none;-webkit-user-select:none;pointer-events:none}
+.feed-card{padding:0;overflow:hidden}
+.feed-main{background:none;border:0;padding:14px;width:100%;text-align:left;color:var(--fg);font:inherit}
+.rx-new{border-color:var(--coral)}
+.rx-bar{display:flex;gap:6px;padding:0 14px 12px;flex-wrap:wrap}
+.sheet .rx-bar{padding:0}
+.rx{height:40px;min-width:48px;padding:0 12px;border-radius:20px;border:1px solid var(--line);background:var(--surface2);color:var(--fg);font-weight:700;font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.rx span[aria-hidden]{font-size:17px;line-height:1}
+.rx[aria-pressed="true"]{background:var(--coral-soft);border-color:var(--coral);color:var(--coral-fg)}
+.rx-big{height:44px;flex:1}
+.rx-got{display:flex;align-items:center;gap:8px;padding:0 14px 12px;font-size:13px;color:var(--muted);flex-wrap:wrap}
+.sheet .rx-got{padding:0}
+.rx-got b{color:var(--fg)}
+.rx-chip{display:inline-flex;align-items:center;gap:4px;background:var(--surface2);border-radius:12px;padding:3px 8px;color:var(--fg);font-weight:600;margin-right:2px}
+.tab-badge{position:absolute;top:0;right:14px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--coral);color:var(--ink);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center}
 .sgrid.hold{background:var(--mint-bg);border-radius:12px;margin-inline:-6px;padding:4px 6px}
 .secw{position:relative;display:block}
 .secw .sin{padding-right:30px;border-color:var(--mint)}
@@ -580,10 +594,10 @@ function renderHistory(){
     const prev=first&&lastEntry(s.user,first.exId,s.date);const pt=prev&&topSet(prev.e.sets);
     const diff=ts&&pt&&!isHold(ts)?ts.w-pt.w:0;
     const hasNote=s.entries.some(e=>e.note);
-    h+=`<button class="card tap row" style="align-items:flex-start;gap:12px" data-a="openSession" data-id="${s.id}">${av(s.user,true)}
+    h+=`<div class="card feed-card ${isNewRx(s)?"rx-new":""}"><button class="feed-main row" style="align-items:flex-start;gap:12px" data-a="openSession" data-id="${s.id}">${av(s.user,true)}
       <div style="flex:1;min-width:0"><div class="between"><span style="font-weight:800">${esc(s.name)}</span><span class="small muted">${dateLbl(s.date)}</span></div>
       <div class="small muted" style="margin-top:2px">${s.entries.length} exercise${s.entries.length===1?"":"s"} ·${Math.round((s.end-s.date)/60000)} min${hasNote?" · has a note":""}</div>
-      ${ts?`<div class="small" style="margin-top:6px"><span class="num">${esc(exById(first.exId).name)} ${wr(ts,exById(first.exId))}</span>${diff>0?` <span class="good">+${fw(diff,exById(first.exId))} ${uLbl(exById(first.exId))}</span>`:""}${pr.sess[s.id]?` <span class="pr" style="margin-left:4px">PR</span>`:""}</div>`:""}</div></button>`;
+      ${ts?`<div class="small" style="margin-top:6px"><span class="num">${esc(exById(first.exId).name)} ${wr(ts,exById(first.exId))}</span>${diff>0?` <span class="good">+${fw(diff,exById(first.exId))} ${uLbl(exById(first.exId))}</span>`:""}${pr.sess[s.id]?` <span class="pr" style="margin-left:4px">PR</span>`:""}</div>`:""}</div></button>${rxBar(s)}</div>`;
   }
   if(!ss.length)h+=all.length?`<div class="card muted">Nothing matches these filters. <button class="chip" style="margin-top:8px" data-a="hfReset">Clear filters</button></div>`:`<div class="card muted">No workouts yet. Finish one and it shows up here.</div>`;
   h+=`</div>`;
@@ -1005,6 +1019,7 @@ function renderSheet(){
       ${s.entries.map((en,ei)=>{const ex=exById(en.exId);return `<button class="card tap stack" style="gap:6px" data-a="openEx" data-id="${ex.id}" data-who="${s.user}"><div class="between"><span style="font-weight:800">${esc(ex.name)}</span>${vpill(ex)}</div>
         ${en.sets.map((st,si)=>`<div class="between"><span>${st.type==="W"?`<span class="small" style="color:var(--warm);font-weight:800;margin-right:6px">W</span>`:""}${fmtSet(st,s.user,ex)}</span>${pr.map[s.id+"|"+ei+"|"+si]?`<span class="pr">PR</span>`:""}</div>`).join("")}
         ${en.note?`<div class="note">${esc(en.note)}</div>`:""}</button>`}).join("")}
+      ${rxBar(s,true)}
       ${s.user===S.me&&!String(s.id).startsWith("p:")?`<button class="btn btn-coral btn-block" data-a="editSession" data-id="${s.id}">Edit workout</button>`:""}`,"Workout details");
   }
   morph($("#sheet"),h);
@@ -1040,7 +1055,7 @@ function render(){
   const root=$("#root");
   $("#tabs").hidden=!S.onboarded;
   morph(root,!S.onboarded?renderOnboard():ui.exId?renderExercise():ui.tab==="workout"?renderWorkout():ui.tab==="history"?renderHistory():ui.tab==="settings"?renderSettings():renderTemplates());
-  $("#tabs").innerHTML=`<nav aria-label="Main">${[["workout","Workout",ICON.dumbbell],["history","History",ICON.clock],["templates","Templates",ICON.list],["settings","Settings",ICON.gear]].map(([k,l,i])=>`<button data-a="tab" data-v="${k}" ${ui.tab===k?'aria-current="page"':""}>${i}${l}</button>`).join("")}</nav>`;
+  $("#tabs").innerHTML=`<nav aria-label="Main">${[["workout","Workout",ICON.dumbbell],["history","History",ICON.clock],["templates","Templates",ICON.list],["settings","Settings",ICON.gear]].map(([k,l,i])=>`<button data-a="tab" data-v="${k}" ${ui.tab===k?'aria-current="page"':""} style="position:relative">${i}${l}${k==="history"&&unseenRx()?`<span class="tab-badge" aria-label="${unseenRx()} new reactions">${unseenRx()}</span>`:""}</button>`).join("")}</nav>`;
   renderRest();renderSheet();
   if(id&&document.activeElement&&document.activeElement.id!==id){const el=document.getElementById(id);if(el){el.focus({preventScroll:true});try{if(ss!=null)el.setSelectionRange(ss,se)}catch(e){}}}
 }
@@ -1094,7 +1109,7 @@ function addToTarget(exId){
   ui.sheet=null;save();render();
 }
 const ACT={
-  tab:d=>{ui.tab=d.v;ui.exId=null;ui.exReturn=null;ui.tplId=null;window.scrollTo(0,0)},
+  tab:d=>{if(d.v==="history"){ui.rxSeenPrev=S.rxSeen||0;markRxSeen()}ui.tab=d.v;ui.exId=null;ui.exReturn=null;ui.tplId=null;window.scrollTo(0,0)},
   openSettings:()=>{ui.tab="settings";ui.exId=null;ui.tplId=null;window.scrollTo(0,0)},
   togUnit:d=>{const ex=exById(d.id);const next=unitOf(ex)==="kg"?"lbs":"kg";if(next===S.units)delete ex.unit;else ex.unit=next;toast(next==="kg"?`${ex.name} (${exLabel(ex)}) now logs in kg`:`${ex.name} (${exLabel(ex)}) back to lbs`)},
   closeSheet:(d,el,ev)=>{if(d.self&&ev.target!==el)return false;ui.sheet=null},
@@ -1197,6 +1212,7 @@ const ACT={
     g.drawImage(c.img,(CROP/2+c.x)*k-c.w*sc/2,(CROP/2+c.y)*k-c.h*sc/2,c.w*sc,c.h*sc);
     let url=out.toDataURL("image/jpeg",0.82);if(url.length>90000)url=out.toDataURL("image/jpeg",0.6);
     U(S.me).photo=url;ui.sheet=null;ui.crop=null;toast("Photo saved")},
+  react:d=>{toggleReaction(d.id,d.k);return false},
   exMenu:d=>{ui.menuE=+d.e;ui.sheet="exmenu"},
   exMove:d=>{const a=S.active.entries;const i=ui.menuE,j=i+(+d.d);if(j<0||j>=a.length)return;[a[i],a[j]]=[a[j],a[i]];ui.sheet=null;
     setTimeout(()=>{const s=document.getElementById("ex-"+j);s&&s.scrollIntoView({block:"start"})},30)},
@@ -1451,7 +1467,7 @@ async function loadPartner(){
       if(P.invite&&P.invite.id!==acc.id){sb.from("partnerships").delete().eq("id",P.invite.id).then(()=>{},()=>{});P.invite=null}
       const {data:ud}=await sb.from("user_data").select("data").eq("user_id",pid).maybeSingle();
       const pk={id:pid,email:mineInv?acc.invitee_email:acc.inviter_email,name:mineInv?"":acc.inviter_name,data:ud?ud.data:{}};
-      applyPartner(pk);P.rowId=acc.id;P.incoming=null;loadPresence();
+      applyPartner(pk);P.rowId=acc.id;P.incoming=null;loadPresence();loadReactions();
       try{localStorage.setItem(KEY+"-partner",JSON.stringify(Object.assign({rowId:acc.id},pk)))}catch(e){}
     }else if(P.on){const inv=P.invite,inc=P.incoming;clearPartner();P.invite=inv;P.incoming=inc}
   }catch(e){}
@@ -1485,6 +1501,54 @@ document.addEventListener("pointerdown",ev=>{const cr=ev.target.closest&&ev.targ
 document.addEventListener("pointermove",ev=>{if(!drag||!ui.crop)return;ui.crop.x=drag.ox+ev.clientX-drag.x;ui.crop.y=drag.oy+ev.clientY-drag.y;clampCrop();const im=$("#crop-img");if(im)im.setAttribute("style",cropStyle())});
 document.addEventListener("pointerup",()=>{drag=null});
 document.addEventListener("pointercancel",()=>{drag=null});
+
+/* ---------- reactions: thumbs up, heart, good job on each other's workouts ---------- */
+const RX=[["up","👍","Nice"],["heart","❤️","Love it"],["strong","💪","Good job"]];
+const RXN=Object.fromEntries(RX.map(([k,e,l])=>[k,{e,l}]));
+let RXS=[];   // reaction rows I can see: ones I gave, and ones on my workouts
+function rxKey(s){const p=String(s.id).startsWith("p:");return {owner:p?P.id:(SY.user&&SY.user.id),sid:p?String(s.id).slice(2):s.id,partner:p}}
+function rxOn(s){const k=rxKey(s);return RXS.filter(r=>r.owner===k.owner&&r.session_id===k.sid)}
+function unseenRx(){if(!SY.user)return 0;const seen=S.rxSeen||0;return RXS.filter(r=>r.owner===SY.user.id&&Date.parse(r.created_at)>seen).length}
+function isNewRx(s){if(!SY.user||String(s.id).startsWith("p:"))return false;const prev=ui.rxSeenPrev||0;return rxOn(s).some(r=>Date.parse(r.created_at)>prev)}
+function markRxSeen(){if(unseenRx()){S.rxSeen=Date.now();save()}}
+function rxBar(s,big){
+  if(!sb||!SY.user||!P.on)return "";
+  const k=rxKey(s);const rows=rxOn(s);
+  if(k.partner){
+    const mine=new Set(rows.filter(r=>r.from_user===SY.user.id).map(r=>r.kind));
+    return `<div class="rx-bar" role="group" aria-label="React to ${esc(P.name)}'s workout">${RX.map(([kk,e,l])=>`<button class="rx ${big?"rx-big":""}" aria-pressed="${mine.has(kk)}" data-a="react" data-id="${s.id}" data-k="${kk}" aria-label="${l}"><span aria-hidden="true">${e}</span>${kk==="strong"||big?`<span>${l}</span>`:""}</button>`).join("")}</div>`;
+  }
+  if(!rows.length)return "";
+  const kinds=RX.filter(([kk])=>rows.some(r=>r.kind===kk));
+  return `<div class="rx-got">${av("p",true)}<span><b>${esc(P.name)}</b> ${kinds.map(([kk,e,l])=>`<span class="rx-chip">${e} ${l}</span>`).join(" ")}</span></div>`;
+}
+async function loadReactions(){
+  if(!sb||!SY.user)return;
+  try{const {data,error}=await sb.from("reactions").select("id,owner,session_id,from_user,kind,created_at").order("created_at",{ascending:false}).limit(500);
+    if(error)throw error;
+    const before=new Set(RXS.map(r=>r.id));const first=!RXS.length&&!ui.rxLoaded;ui.rxLoaded=true;
+    RXS=data||[];
+    if(!first){const fresh=RXS.filter(r=>!before.has(r.id)&&r.owner===SY.user.id);
+      if(fresh.length){const r=fresh[0];const ss=S.sessions.find(x=>x.id===r.session_id);
+        toast(`${P.name||"Your partner"}: ${RXN[r.kind].e} ${RXN[r.kind].l}${ss?" on "+ss.name:""}`)}}
+    if(ui.tab==="history"&&!document.hidden)markRxSeen();
+    render();
+  }catch(e){}
+}
+async function toggleReaction(sid,kind){
+  const s=ALLS().find(x=>x.id===sid);if(!s||!SY.user||!P.on)return;const k=rxKey(s);
+  const had=RXS.find(r=>r.owner===k.owner&&r.session_id===k.sid&&r.from_user===SY.user.id&&r.kind===kind);
+  if(had)RXS=RXS.filter(r=>r!==had);else RXS.unshift({id:"tmp"+Date.now(),owner:k.owner,session_id:k.sid,from_user:SY.user.id,kind,created_at:new Date().toISOString()});
+  render();
+  try{const q=had?sb.from("reactions").delete().eq("owner",k.owner).eq("session_id",k.sid).eq("from_user",SY.user.id).eq("kind",kind)
+      :sb.from("reactions").insert({owner:k.owner,session_id:k.sid,kind});
+    const {error}=await q;if(error&&!/duplicate|unique/i.test(error.message))throw error;
+    if(!had)toast(`Sent ${RXN[kind].e} to ${P.name}`);
+  }catch(e){toast("Couldn't send that. Check your signal and try again");}
+  loadReactions();
+}
+setInterval(()=>{if(document.visibilityState==="visible")loadReactions()},60000);
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")loadReactions()});
 
 /* ---------- presence: a green dot while the app is open ---------- */
 async function heartbeat(){
