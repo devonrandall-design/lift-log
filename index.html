@@ -193,6 +193,8 @@ mark{background:var(--gold-bg);color:var(--gold-text);border-radius:3px;padding:
 .act-new{border-color:var(--coral)}
 .act-dot{width:9px;height:9px;border-radius:5px;background:var(--coral);flex-shrink:0;margin-top:6px}
 .act-pr{display:flex;flex-direction:column;gap:4px;margin-top:8px;align-items:flex-start}
+.sgrid.uni{grid-template-columns:46px minmax(0,1.2fr) minmax(0,.9fr) minmax(0,.9fr) 50px 44px;gap:5px}
+.lr-gap{display:inline-block;font-size:11px;font-weight:800;color:var(--coral-fg);background:var(--coral-soft);border-radius:6px;padding:1px 6px;margin-left:4px;vertical-align:1px}
 .sgrid.hold{background:var(--mint-bg);border-radius:12px;margin-inline:-6px;padding:4px 6px}
 .secw{position:relative;display:block}
 .secw .sin{padding-right:30px;border-color:var(--mint)}
@@ -374,13 +376,21 @@ function effortText(left,user){
 }
 function exLabel(ex){return [EQ[ex.equip],ex.brand].filter(Boolean).join(" · ")}
 function exFull(ex){return ex.name+" · "+exLabel(ex)}
-function varLbl(ex){return exLabel(ex)+(ex.load==="each"?" · each side":"")+(ex.unit==="kg"&&S.units!=="kg"?" · kg plates":ex.unit==="lbs"&&S.units==="kg"?" · lb plates":"")}
+function varLbl(ex){return exLabel(ex)+(ex.side==="one"?" · single side":"")+(ex.load==="each"?" · each side":"")+(ex.unit==="kg"&&S.units!=="kg"?" · kg plates":ex.unit==="lbs"&&S.units==="kg"?" · lb plates":"")}
 /* duplicate guard: "Hip-thrust", "hip thrusts" and "Hip Thrust" are one movement; brands match ignoring case and spacing */
 function normName(s){let n=String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");n=n.replace(/(ss|sh|ch|x)es$/,"$1");if(/[^s]s$/.test(n))n=n.slice(0,-1);return n}
 const normBrand=s=>String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
 function siblings(ex){const n=normName(ex.name);return (String(ex.id).startsWith("p:")?PX:S.exercises).filter(e=>normName(e.name)===n)}
 function findDup(nx){const nn=normName(nx.name);if(!nn)return null;const br=BRANDED[nx.equip]?normBrand(nx.brand):"";
-  return S.exercises.find(e=>normName(e.name)===nn&&e.equip===nx.equip&&normBrand(e.brand)===br)||null}
+  return S.exercises.find(e=>normName(e.name)===nn&&e.equip===nx.equip&&normBrand(e.brand)===br&&(e.side||"")===(nx.side||""))||null}
+/* single side: one limb at a time. Each set keeps left (rl) and right (rr) reps; r is the weaker side, so progress and PRs follow the weaker side */
+const isUni=ex=>!!ex&&ex.side==="one";
+const hasLR=s=>!!s&&((s.rl!==""&&s.rl!=null)||(s.rr!==""&&s.rr!=null));
+function lrSync(s){const v=[s.rl,s.rr].filter(x=>x!==""&&x!=null).map(Number);s.r=v.length?Math.min(...v):""}
+function lrGap(s){if(!hasLR(s)||s.rl===""||s.rr===""||s.rl==null||s.rr==null)return "";const d=s.rl-s.rr;if(Math.abs(d)<2)return "";
+  const sec=isHold(s);return (d>0?"R":"L")+" −"+(sec?fmtSec(Math.abs(d)):Math.abs(d))}
+function keepLR(src,out){if(hasLR(src)){out.rl=src.rl===""||src.rl==null?"":+src.rl;out.rr=src.rr===""||src.rr==null?"":+src.rr}return out}
+function lrText(s){const f=v=>v===""||v==null?"–":isHold(s)?fmtSec(v):v;return "L "+f(s.rl)+" · R "+f(s.rr)}
 /* ---------- plate math ---------- */
 const PL_LB=[[45,"p"],[35,"th"],[25,"q"],[10,"t"],[5,"f"],[2.5,"b"]];
 const PL_KG=[[25,""],[20,""],[15,""],[10,""],[5,""],[2.5,""],[1.25,""]];
@@ -439,7 +449,7 @@ function parseSec(v){v=String(v).trim();if(!v)return "";const m=v.match(/^(\d+):
 const holdSets=sets=>sets.filter(s=>isHold(s)&&+s.r>0);
 function bestHold(sets){let b=null;for(const s of holdSets(sets)){const w=+s.w||0,bw=b?(+b.w||0):-1;if(!b||w>bw||(w===bw&&+s.r>+b.r))b=s}return b}
 const topAny=sets=>topSet(sets)||bestHold(sets);
-function wr(s,ex){return isHold(s)?(+s.w>0?fw(s.w,ex)+" × ":"Bodyweight × ")+fmtSec(s.r)+" hold":fw(s.w,ex)+" × "+s.r}
+function wr(s,ex){if(hasLR(s))return (isHold(s)&&!(+s.w>0)?"Bodyweight":fw(s.w,ex))+" × "+lrText(s)+(isHold(s)?" hold":"");return isHold(s)?(+s.w>0?fw(s.w,ex)+" × ":"Bodyweight × ")+fmtSec(s.r)+" hold":fw(s.w,ex)+" × "+s.r}
 const filled=st=>+st.r>0&&((st.w!==""&&st.w!=null)||isHold(st));
 function topSet(sets){let b=null;for(const s of working(sets)){if(!b||s.w>b.w||(s.w===b.w&&s.r>b.r))b=s}return b}
 function bestE(sets){return Math.max(0,...working(sets).map(e1))}
@@ -464,7 +474,7 @@ function av(user,small){const u=U(user);const dot=user==="p"&&partnerOnline();
   return `<span class="avatar ${small?"av-sm":""} ${photoOf(user)?"has-photo":""}" aria-hidden="true" style="background:${u.color}">${avInner(user)}${dot?`<span class="on-dot"></span>`:""}</span>`}
 function lastSeenText(){if(!P.lastSeen)return "";const m=Math.round((Date.now()-Date.parse(P.lastSeen))/60000);
   if(partnerOnline())return "Online now";if(m<60)return "Active "+m+" min ago";if(m<1440)return "Active "+Math.round(m/60)+" hr ago";return "Active "+ago(Date.parse(P.lastSeen))}
-function fmtSet(s,user,ex){if(isHold(s))return `<span class="num">${wr(s,ex)}</span>`;const ef=effortText(s.left,user);return `<span class="num">${fw(s.w,ex)}${ex&&ex.unit?`<span class="small faint"> ${uLbl(ex)}</span>`:""} × ${s.r}</span>${ef?` <span class="small muted">· ${esc(ef)}</span>`:""}`}
+function fmtSet(s,user,ex){const g=lrGap(s);const gap=g?` <span class="lr-gap" title="Difference between sides">${g}</span>`:"";if(isHold(s))return `<span class="num">${wr(s,ex)}</span>${gap}`;const ef=effortText(s.left,user);return `<span class="num">${fw(s.w,ex)}${ex&&ex.unit?`<span class="small faint"> ${uLbl(ex)}</span>`:""} × ${hasLR(s)?lrText(s):s.r}</span>${gap}${ef?` <span class="small muted">· ${esc(ef)}</span>`:""}`}
 function toast(msg,act){const t=$("#toast");t.textContent=msg;
   if(act){const b=document.createElement("button");b.textContent=act.label;b.dataset.a=act.a;t.appendChild(b)}
   t.hidden=false;clearTimeout(ui.toast);ui.toast=setTimeout(()=>{t.hidden=true},act?6000:2600)}
@@ -535,10 +545,10 @@ function renderActive(){
       <div class="row" style="gap:2px"><button class="chip" data-a="openEx" data-id="${ex.id}" style="background:transparent;border:0;color:var(--coral-text);padding:0 6px;height:44px">History</button>
       <button class="icon-btn" style="border:0;background:transparent" data-a="exMenu" data-e="${ei}" aria-label="More options for ${esc(ex.name)}">${ICON.more}</button></div></div>
       ${setupBlock(ex)}
-      ${lt?`<div class="last">Last time: <b>${isHold(lt)?wr(lt,ex):fw(lt.w,ex)+" "+uLbl(ex)+" × "+lt.r}</b>${lt.left!==""?" · "+esc(effortText(lt.left,A.user)):""}</div>`:`<div class="last">First time logging this one</div>`}
+      ${lt?`<div class="last">Last time: <b>${isHold(lt)||hasLR(lt)?wr(lt,ex):fw(lt.w,ex)+" "+uLbl(ex)+" × "+lt.r}</b>${lt.left!==""?" · "+esc(effortText(lt.left,A.user)):""}</div>`:`<div class="last">First time logging this one</div>`}
       ${banner}
       <div class="sets" role="table" aria-label="${esc(ex.name)} sets">
-      <div class="sgrid shead" role="row"><span role="columnheader">Set</span><span role="columnheader"><button class="unit-tg ${unitOf(ex)==="kg"?"kg":""}" data-a="togUnit" data-id="${ex.id}" aria-label="Weight in ${uLbl(ex)}. Tap to switch plates to ${unitOf(ex)==="kg"?"lbs":"kg"}">${uLbl(ex)} ⇄</button></span><span role="columnheader">${ex.measure==="time"?"Seconds":en.sets.some(isHold)?"Reps / sec":"Reps"}</span><span role="columnheader">${ex.measure==="time"?"Timer":effortHead}</span><span role="columnheader"><span class="sr">Done</span></span></div>`;
+      <div class="sgrid shead ${isUni(ex)?"uni":""}" role="row"><span role="columnheader">Set</span><span role="columnheader"><button class="unit-tg ${unitOf(ex)==="kg"?"kg":""}" data-a="togUnit" data-id="${ex.id}" aria-label="Weight in ${uLbl(ex)}. Tap to switch plates to ${unitOf(ex)==="kg"?"lbs":"kg"}">${uLbl(ex)} ⇄</button></span>${isUni(ex)?`<span role="columnheader">Left</span><span role="columnheader">Right</span>`:`<span role="columnheader">${ex.measure==="time"?"Seconds":en.sets.some(isHold)?"Reps / sec":"Reps"}</span>`}<span role="columnheader">${ex.measure==="time"?"Timer":effortHead}</span><span role="columnheader"><span class="sr">Done</span></span></div>`;
     en.sets.forEach((s,si)=>{
       if(s.type==="N")n++;
       const lab=s.type==="W"?"W":s.type==="D"?"DROP":s.type==="A"?"AMRAP":s.type==="H"?"HOLD":String(n);
@@ -546,10 +556,12 @@ function renderActive(){
       const ph=L&&L.e.sets[si]?L.e.sets[si]:lt;
       const effVal=s.left===""?"":(U(A.user).effort==="rpe"?10-s.left:s.left);
       const effPh=ph&&ph.left!==""&&s.type!=="W"?(U(A.user).effort==="rpe"?10-ph.left:ph.left):"";
-      h+=`<div class="sgrid ${s.done?"done":""} ${H?"hold":""}" role="row">
+      const UN=isUni(ex);const lrPh=side=>{if(!ph||isHold(ph)!==H)return H?"sec":"";const v=hasLR(ph)?ph[side]:ph.r;return v==null?"":v};
+      h+=`<div class="sgrid ${s.done?"done":""} ${H?"hold":""} ${UN?"uni":""}" role="row">
         <button class="stype t-${s.type}" data-a="cycleType" data-e="${ei}" data-s="${si}" aria-label="Set type ${lab}. Tap to choose a type">${lab}</button>
         <label><span class="sr">Weight in ${uLbl(ex)}</span><input class="sin" id="w-${ei}-${si}" inputmode="decimal" data-in="set" data-e="${ei}" data-s="${si}" data-f="w" value="${toDisp(s.w,ex)}" placeholder="${ph?fw(ph.w,ex):""}"></label>
-        <label class="${H?"secw":""}"><span class="sr">${H?"Seconds held":"Reps"}</span><input class="sin" id="r-${ei}-${si}" inputmode="numeric" data-in="set" data-e="${ei}" data-s="${si}" data-f="r" value="${s.r}" placeholder="${H?(ph&&isHold(ph)?ph.r:"sec"):(ph&&!isHold(ph)?ph.r:"")}"></label>
+        ${UN?["rl","rr"].map(f=>`<label class="${H?"secw":""}"><span class="sr">${f==="rl"?"Left":"Right"} ${H?"seconds":"reps"}</span><input class="sin" id="${f}-${ei}-${si}" inputmode="numeric" data-in="set" data-e="${ei}" data-s="${si}" data-f="${f}" value="${s[f]==null?"":s[f]}" placeholder="${lrPh(f)}"></label>`).join("")
+        :`<label class="${H?"secw":""}"><span class="sr">${H?"Seconds held":"Reps"}</span><input class="sin" id="r-${ei}-${si}" inputmode="numeric" data-in="set" data-e="${ei}" data-s="${si}" data-f="r" value="${s.r}" placeholder="${H?(ph&&isHold(ph)?ph.r:"sec"):(ph&&!isHold(ph)?ph.r:"")}"></label>`}
         ${H?`<button class="sw ${run?"on":""}" data-a="holdTimer" data-e="${ei}" data-s="${si}" aria-label="${run?"Stop timer and fill in the seconds":"Start a timer for this hold"}">${run?`<span id="hold-t">${fmtSec((Date.now()-ui.hold.start)/1000)}</span>`:ICON.watch}</button>`
         :`<label><span class="sr">${effortHead}</span><input class="sin" id="l-${ei}-${si}" inputmode="numeric" data-in="set" data-e="${ei}" data-s="${si}" data-f="left" value="${effVal}" placeholder="${s.type==="W"?"–":effPh}" ${s.type==="W"?"disabled":""}></label>`}
         <button class="check ${s.type==="W"?"w":""}" data-a="toggleDone" data-e="${ei}" data-s="${si}" aria-pressed="${!!s.done}" aria-label="${s.done?"Set completed. Tap to undo":"Complete set"}">${ICON.check}</button></div>`;
@@ -940,6 +952,7 @@ function renderSheet(){
         ${brandHint?`<button class="chip" data-a="nxSet" data-k="brand" data-v="${esc(brandHint)}">Did you mean ${esc(brandHint)}?</button>`:""}</fieldset>`:""}
       ${BRANDED[nx.equip]||nx.equip==="barbell"?`<label class="stack" style="gap:6px"><span class="eyebrow">Setup note (optional)</span><input class="field" id="nx-setup" data-in="nx" data-k="setup" value="${esc(nx.setup||"")}" placeholder="Seat 4, pin 3, rolled to top" style="font-size:15px;height:44px"></label>`:""}
       ${nx.equip==="machine"?`<fieldset><legend class="eyebrow">Loads with</legend><div class="seg">${[["1","Plates"],["0","Weight stack"]].map(([v,l])=>`<button aria-pressed="${(nx.plates==="0"?"0":"1")===v}" data-a="nxSet" data-k="plates" data-v="${v}">${l}</button>`).join("")}</div></fieldset>`:""}
+      <fieldset><legend class="eyebrow">Done with</legend><div class="seg">${[["","Both sides together"],["one","One side at a time"]].map(([v,l])=>`<button aria-pressed="${(nx.side||"")===v}" data-a="nxSet" data-k="side" data-v="${v}">${l}</button>`).join("")}</div></fieldset>
       <fieldset><legend class="eyebrow">Measured in</legend><div class="seg">${[["reps","Reps"],["time","Seconds (holds)"]].map(([v,l])=>`<button aria-pressed="${(nx.measure||"reps")===v}" data-a="nxSet" data-k="measure" data-v="${v}">${l}</button>`).join("")}</div></fieldset>
       <fieldset><legend class="eyebrow">Plates are in</legend><div class="seg">${["lbs","kg"].map(x=>`<button aria-pressed="${(nx.unit||S.units)===x}" data-a="nxSet" data-k="unit" data-v="${x}">${x}</button>`).join("")}</div></fieldset>
       <fieldset><legend class="eyebrow">How it loads</legend><div class="stack" style="gap:6px">${Object.entries(LOADS).map(([k,[a,b]])=>`<button class="loadopt" aria-pressed="${nx.load===k}" data-a="nxSet" data-k="load" data-v="${k}"><span>${a}</span><span>${b}</span></button>`).join("")}</div></fieldset>
@@ -975,6 +988,7 @@ function renderSheet(){
         <button class="loadopt" data-a="exMove" data-d="1" ${i===n-1?"disabled style='opacity:.4'":""}><span>Move down</span><span></span></button>
         <button class="loadopt" data-a="markAllDone" data-e="${i}"><span>Mark all sets done</span><span>${pendingSets(S.active,i).length?pendingSets(S.active,i).length+" with numbers":"fill in weight and reps first"}</span></button>
         <button class="loadopt" data-a="setMeasure" data-id="${ex.id}" data-v="${ex.measure==="time"?"reps":"time"}"><span>${ex.measure==="time"?"Log reps instead":"Log as holds (seconds)"}</span><span>${ex.measure==="time"?"back to weight × reps":"planks, dead hangs, static holds"}</span></button>
+        <button class="loadopt" data-a="setSide" data-i="${i}"><span>${isUni(ex)?"Single side: on":"One side at a time"}</span><span>${isUni(ex)?"back to both sides together":"separate left and right reps"}</span></button>
         <button class="loadopt" data-a="openVar" data-kind="active" data-i="${i}"><span>Switch version</span><span>machine, bar, dumbbell…</span></button>
         ${ex.equip==="machine"?`<button class="loadopt" data-a="setPlates" data-id="${ex.id}" data-v="${plateable(ex)?0:1}"><span>${plateable(ex)?"Plate-loaded: on":"Plate-loaded: off"}</span><span>${plateable(ex)?"tap if it's a weight stack":"tap if you load plates"}</span></button>`:""}
         <button class="loadopt" data-a="exRemove" style="color:var(--coral-text)"><span>Remove from workout</span><span>${done?`${done} logged set${done>1?"s":""} too`:""}</span></button>
@@ -1135,13 +1149,23 @@ const ACT={
     if(ui.hold&&ui.hold.e===e&&ui.hold.s===si){const st=S.active.entries[e].sets[si];st.r=Math.max(1,Math.round((Date.now()-ui.hold.start)/1000));ui.hold=null;
       setTimeout(()=>{const r=document.getElementById("r-"+e+"-"+si);r&&r.focus()},30);return}
     ui.hold={e,s:si,start:Date.now()}},
+  setSide:d=>{const en=S.active.entries[d.i];const ex=exById(en.exId);const want=isUni(ex)?"":"one";
+    let tw=S.exercises.find(e=>e.id!==ex.id&&normName(e.name)===normName(ex.name)&&e.equip===ex.equip&&normBrand(e.brand)===normBrand(ex.brand)&&(e.side||"")===want);
+    if(!tw){tw=Object.assign(JSON.parse(JSON.stringify(ex)),{id:uid()});if(want)tw.side="one";else delete tw.side;S.exercises.push(tw)}
+    if(S.active.entries.some((e,k)=>e.exId===tw.id&&k!==+d.i)){toast("That version is already in this workout");ui.sheet=null;return}
+    en.exId=tw.id;
+    if(want)en.sets.forEach(st=>{if(!hasLR(st)&&!st.done&&st.r!==""){st.rl=st.r;st.rr=st.r}});
+    const L=lastEntry(S.active.user,tw.id);const t=L&&topSet(L.e.sets);if(t)en.sets.forEach(st=>{if(!st.done&&st.w==="")st.w=t.w});
+    ui.sheet=null;toast(want?"Single side: log left and right reps. Its history stays separate.":"Back to both sides together")},
   setMeasure:d=>{const ex=exById(d.id);const on=d.v==="time";if(on)ex.measure="time";else delete ex.measure;
     const en=S.active&&S.active.entries[ui.menuE];if(en&&en.exId===ex.id)en.sets.forEach(st=>{if(st.done||st.type==="W")return;if(on&&st.type==="N"){st.type="H";st.left="";st.r=""}else if(!on&&st.type==="H"){st.type="N";st.r=""}});
     ui.sheet=null;toast(on?`${ex.name} now logs holds in seconds`:`${ex.name} back to reps`)},
   toggleDone:d=>{const en=S.active.entries[d.e];const s=en.sets[d.s];
     if(!s.done){const L=lastEntry(S.active.user,en.exId);const ph=L&&(L.e.sets[d.s]||topSet(L.e.sets));
       const same=ph&&isHold(ph)===isHold(s);
-      if(s.w===""&&ph)s.w=ph.w;if(s.r===""&&same)s.r=ph.r;if(s.left===""&&s.type!=="W"&&!isHold(s)&&same&&ph.left!=="")s.left=ph.left;
+      if(s.w===""&&ph)s.w=ph.w;
+      if(isUni(exById(en.exId))&&!hasLR(s)&&same){s.rl=hasLR(ph)?ph.rl:ph.r;s.rr=hasLR(ph)?ph.rr:ph.r;lrSync(s)}
+      if(s.r===""&&same)s.r=ph.r;if(s.left===""&&s.type!=="W"&&!isHold(s)&&same&&ph.left!=="")s.left=ph.left;
       if(isHold(s)){if(s.w==="")s.w=0;if(ui.hold&&ui.hold.e===+d.e&&ui.hold.s===+d.s){s.r=Math.max(1,Math.round((Date.now()-ui.hold.start)/1000));ui.hold=null}
         if(!(+s.r>0)){toast("Add how many seconds you held it");return}}
       else if(s.w===""||!(s.r>0)){toast("Add weight and reps first");return}
@@ -1154,7 +1178,7 @@ const ACT={
   openFinish:()=>{ui.sheet="finish"},
   saveWorkout:()=>{if(ui.updTpl){applyTplUpdate();ui.updTpl=false}const A=S.active;
     if(ui.saveTpl&&!A.templateId){ui.saveTpl=false;S.templates.push({id:uid(),name:A.name.trim()||"Workout",for:A.user,by:A.user,
-      items:A.entries.filter(en=>en.sets.some(s=>s.done)).map(en=>{const w=en.sets.filter(s=>s.done&&s.type!=="W");const t=topSet(w);return {exId:en.exId,sets:Math.max(1,w.length),reps:t?String(t.r):"8–10",core:true,subs:[]}})})}const entries=A.entries.map(en=>({exId:en.exId,note:en.note||"",sets:en.sets.filter(s=>s.done).map(s=>({w:+s.w,r:+s.r,left:s.left===""?"":+s.left,type:s.type}))})).filter(e=>e.sets.length);
+      items:A.entries.filter(en=>en.sets.some(s=>s.done)).map(en=>{const w=en.sets.filter(s=>s.done&&s.type!=="W");const t=topSet(w);return {exId:en.exId,sets:Math.max(1,w.length),reps:t?String(t.r):"8–10",core:true,subs:[]}})})}const entries=A.entries.map(en=>({exId:en.exId,note:en.note||"",sets:en.sets.filter(s=>s.done).map(s=>keepLR(s,{w:+s.w,r:+s.r,left:s.left===""?"":+s.left,type:s.type}))})).filter(e=>e.sets.length);
     S.sessions.push({id:uid(),user:A.user,date:A.start,end:Date.now(),name:A.name,entries});S.active=null;ui.rest=null;ui.sheet=null;ui.tab="history";ui.whose=S.me;ui.search=false;toast("Workout saved");window.scrollTo(0,0)},
   discard:()=>{S.active=null;ui.rest=null;ui.sheet=null;toast("Workout discarded")},
   openSearch:()=>{ui.search=true;setTimeout(()=>{const q=$("#q");q&&q.focus()},0)},
@@ -1201,7 +1225,7 @@ const ACT={
     ui.sheet=null;ui.exId=null;ui.rest=null;ui.tab="workout";ui.confirmDel=false;window.scrollTo(0,0)},
   cancelEdit:()=>{const id=S.active.editOf;S.active=S.stash||null;delete S.stash;ui.tab="history";ui.sessionId=id;ui.sheet="session";toast("No changes made")},
   saveEdit:()=>{const A=S.active;const sx=S.sessions.find(x=>x.id===A.editOf);
-    const entries=A.entries.map(en=>({exId:en.exId,note:en.note||"",sets:en.sets.filter(filled).map(st=>({w:+st.w||0,r:+st.r,left:st.left===""?"":+st.left,type:st.type}))})).filter(e=>e.sets.length);
+    const entries=A.entries.map(en=>({exId:en.exId,note:en.note||"",sets:en.sets.filter(filled).map(st=>keepLR(st,{w:+st.w||0,r:+st.r,left:st.left===""?"":+st.left,type:st.type}))})).filter(e=>e.sets.length);
     if(!entries.length){toast("Add at least one set with weight and reps, or delete the workout");return}
     if(sx){sx.name=(A.name||"").trim()||"Workout";sx.date=A.start;sx.end=A.start+Math.max(1,+A.durMin||1)*60000;sx.entries=entries}
     S.sessions.sort((a,b)=>a.date-b.date);
@@ -1257,6 +1281,7 @@ const ACT={
     if(nx.unit&&nx.unit!==S.units)ex.unit=nx.unit;
     if(nx.equip==="machine")ex.plates=nx.plates!=="0";
     if(nx.measure==="time")ex.measure="time";
+    if(nx.side==="one")ex.side="one";
     if(nx.setup&&nx.setup.trim())ex.setup=nx.setup.trim();
     S.exercises.push(ex);addToTarget(ex.id);return false},
   setMe:d=>{S.me=d.v;ui.exWho=null;ui.whose=d.v;ui.f.whose=d.v},
@@ -1295,6 +1320,7 @@ document.addEventListener("input",ev=>{
   const el=ev.target;const k=el.dataset.in;if(!k)return;
   if(k==="set"){const s=S.active.entries[el.dataset.e].sets[el.dataset.s];const v=el.value.trim();const f=el.dataset.f;
     if(f==="w"){const ex=exById(S.active.entries[el.dataset.e].exId);s.w=fromDisp(v,ex);const t=$("#ph-text");if(t)t.textContent=plateHint(ex,s.w)}else if(f==="r")s.r=isHold(s)?parseSec(v):(v===""?"":parseInt(v,10)||"");
+    else if(f==="rl"||f==="rr"){s[f]=isHold(s)?parseSec(v):(v===""?"":parseInt(v,10)||"");if(s[f]===0)s[f]="";lrSync(s)}
     else{if(v===""){s.left=""}else{const n=parseFloat(v);s.left=U(S.active.user).effort==="rpe"?Math.max(0,Math.min(10,10-n)):Math.max(0,n)}}
     save();return}
   if(k==="note"){S.active.entries[el.dataset.e].note=el.value;save();return}
@@ -1452,7 +1478,7 @@ function applyPartner(pk){
   P.name=(d.users&&d.users.d&&d.users.d.name)||pk.name||(P.email.split("@")[0])||"Partner";
   const mine=new Map(S.exercises.map(e=>[e.id,e]));const map={};PX=[];
   for(const e of (d.exercises||[])){const m=mine.get(e.id);
-    if(m&&normName(m.name)===normName(e.name)&&m.equip===e.equip&&normBrand(m.brand)===normBrand(e.brand))map[e.id]=e.id;
+    if(m&&normName(m.name)===normName(e.name)&&m.equip===e.equip&&normBrand(m.brand)===normBrand(e.brand)&&(m.side||"")===(e.side||""))map[e.id]=e.id;
     else{const c=Object.assign({},e,{id:"p:"+e.id,partner:true});PX.push(c);map[e.id]=c.id}}
   const known=new Set(S.exercises.map(e=>e.id).concat(PX.map(e=>e.id)));
   P.sessions=(d.sessions||[]).filter(x=>x.user==="d").map(x=>Object.assign({},x,{id:"p:"+x.id,user:"p",

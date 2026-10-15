@@ -43,7 +43,6 @@ Web apps can't read Apple Health, so this needs one of:
 - **Pin-setting machines**: log `[6]`-style settings as their own unit.
 - **Half and partial reps**: allow 6.5 instead of rounding.
 - **Set tags**: strapped, wraps & sleeves, rolled to top, paused, partials. Tagged sets stay in history but are marked.
-- **Left / right logging** for each-arm exercises.
 - **Repeat last workout** shortcut on the Workout tab.
 - **Merge duplicate exercises** tool, in case one slips through.
 
