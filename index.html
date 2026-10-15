@@ -195,6 +195,14 @@ mark{background:var(--gold-bg);color:var(--gold-text);border-radius:3px;padding:
 .act-pr{display:flex;flex-direction:column;gap:4px;margin-top:8px;align-items:flex-start}
 .sgrid.uni{grid-template-columns:46px minmax(0,1.2fr) minmax(0,.9fr) minmax(0,.9fr) 50px 44px;gap:5px}
 .lr-gap{display:inline-block;font-size:11px;font-weight:800;color:var(--coral-fg);background:var(--coral-soft);border-radius:6px;padding:1px 6px;margin-left:4px;vertical-align:1px}
+.swipe{position:relative;overflow:hidden;border-radius:12px;touch-action:pan-y}
+.swipe>.sgrid{position:relative;background:var(--surface);transition:transform .2s ease;z-index:1}
+.swipe.open>.sgrid{transform:translateX(-150px)}
+.swipe .sgrid.hold{margin-inline:0}
+.swipe-acts{position:absolute;top:0;right:0;bottom:0;width:150px;display:flex;gap:4px;padding:2px 0 2px 6px}
+.swipe-acts button{flex:1;border:0;border-radius:10px;font:inherit;font-size:12px;font-weight:800;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+.sw-copy{background:var(--blue);color:var(--ink)}
+.sw-del{background:var(--coral);color:var(--ink)}
 .sgrid.hold{background:var(--mint-bg);border-radius:12px;margin-inline:-6px;padding:4px 6px}
 .secw{position:relative;display:block}
 .secw .sin{padding-right:30px;border-color:var(--mint)}
@@ -276,6 +284,8 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const uid=()=>Math.random().toString(36).slice(2,9);
 const ICON={
+  copy:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
+  trash:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>',
   bell:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>',
   x:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
   xs:'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
@@ -557,14 +567,16 @@ function renderActive(){
       const effVal=s.left===""?"":(U(A.user).effort==="rpe"?10-s.left:s.left);
       const effPh=ph&&ph.left!==""&&s.type!=="W"?(U(A.user).effort==="rpe"?10-ph.left:ph.left):"";
       const UN=isUni(ex);const lrPh=side=>{if(!ph||isHold(ph)!==H)return H?"sec":"";const v=hasLR(ph)?ph[side]:ph.r;return v==null?"":v};
-      h+=`<div class="sgrid ${s.done?"done":""} ${H?"hold":""} ${UN?"uni":""}" role="row">
+      const sw=ui.swiped===ei+"-"+si;
+      h+=`<div class="swipe ${sw?"open":""}" data-e="${ei}" data-s="${si}"><div class="swipe-acts" ${sw?"":'aria-hidden="true"'}><button class="sw-copy" data-a="copySet" data-e="${ei}" data-s="${si}" ${sw?"":'tabindex="-1"'}>${ICON.copy}Copy</button><button class="sw-del" data-a="delSet" data-e="${ei}" data-s="${si}" ${sw?"":'tabindex="-1"'}>${ICON.trash}Delete</button></div>
+      <div class="sgrid ${s.done?"done":""} ${H?"hold":""} ${UN?"uni":""}" role="row">
         <button class="stype t-${s.type}" data-a="cycleType" data-e="${ei}" data-s="${si}" aria-label="Set type ${lab}. Tap to choose a type">${lab}</button>
         <label><span class="sr">Weight in ${uLbl(ex)}</span><input class="sin" id="w-${ei}-${si}" inputmode="decimal" data-in="set" data-e="${ei}" data-s="${si}" data-f="w" value="${toDisp(s.w,ex)}" placeholder="${ph?fw(ph.w,ex):""}"></label>
         ${UN?["rl","rr"].map(f=>`<label class="${H?"secw":""}"><span class="sr">${f==="rl"?"Left":"Right"} ${H?"seconds":"reps"}</span><input class="sin" id="${f}-${ei}-${si}" inputmode="numeric" data-in="set" data-e="${ei}" data-s="${si}" data-f="${f}" value="${s[f]==null?"":s[f]}" placeholder="${lrPh(f)}"></label>`).join("")
         :`<label class="${H?"secw":""}"><span class="sr">${H?"Seconds held":"Reps"}</span><input class="sin" id="r-${ei}-${si}" inputmode="numeric" data-in="set" data-e="${ei}" data-s="${si}" data-f="r" value="${s.r}" placeholder="${H?(ph&&isHold(ph)?ph.r:"sec"):(ph&&!isHold(ph)?ph.r:"")}"></label>`}
         ${H?`<button class="sw ${run?"on":""}" data-a="holdTimer" data-e="${ei}" data-s="${si}" aria-label="${run?"Stop timer and fill in the seconds":"Start a timer for this hold"}">${run?`<span id="hold-t">${fmtSec((Date.now()-ui.hold.start)/1000)}</span>`:ICON.watch}</button>`
         :`<label><span class="sr">${effortHead}</span><input class="sin" id="l-${ei}-${si}" inputmode="numeric" data-in="set" data-e="${ei}" data-s="${si}" data-f="left" value="${effVal}" placeholder="${s.type==="W"?"–":effPh}" ${s.type==="W"?"disabled":""}></label>`}
-        <button class="check ${s.type==="W"?"w":""}" data-a="toggleDone" data-e="${ei}" data-s="${si}" aria-pressed="${!!s.done}" aria-label="${s.done?"Set completed. Tap to undo":"Complete set"}">${ICON.check}</button></div>`;
+        <button class="check ${s.type==="W"?"w":""}" data-a="toggleDone" data-e="${ei}" data-s="${si}" aria-pressed="${!!s.done}" aria-label="${s.done?"Set completed. Tap to undo":"Complete set"}">${ICON.check}</button></div></div>`;
     });
     h+=`</div><div class="row"><button class="btn-dash" style="flex:1" data-a="addSet" data-e="${ei}">+ Add set</button>
       <button class="chip" style="height:46px;border-radius:14px" data-a="toggleNote" data-e="${ei}">${ICON.pen}Note</button></div>
@@ -971,7 +983,9 @@ function renderSheet(){
       <button class="btn btn-coral btn-block" data-a="photoSave">Save photo</button>`,"Profile photo");
   }else if(k==="stype"){
     const c=ui.stCtx;const st=S.active.entries[c.e].sets[c.s];
-    h=sheetWrap(`<h2 style="margin:0;font-size:22px">Set type</h2><div class="stack" style="gap:6px">${[["N","Normal","a regular working set"],["W","Warmup","doesn't count toward records"],["D","Drop set","weight drops right after"],["A","AMRAP","as many reps as possible"],["H","Hold","timed in seconds, like a static hold"]].map(([k,l,dd])=>`<button class="loadopt" aria-pressed="${st.type===k}" data-a="setType" data-v="${k}"><span>${l}</span><span>${dd}</span></button>`).join("")}</div>`,"Set type");
+    h=sheetWrap(`<h2 style="margin:0;font-size:22px">Set type</h2><div class="stack" style="gap:6px">${[["N","Normal","a regular working set"],["W","Warmup","doesn't count toward records"],["D","Drop set","weight drops right after"],["A","AMRAP","as many reps as possible"],["H","Hold","timed in seconds, like a static hold"]].map(([k,l,dd])=>`<button class="loadopt" aria-pressed="${st.type===k}" data-a="setType" data-v="${k}"><span>${l}</span><span>${dd}</span></button>`).join("")}</div>
+      <div class="grid2"><button class="btn btn-ghost" data-a="copySet" data-e="${c.e}" data-s="${c.s}">${ICON.copy} Duplicate</button><button class="btn btn-ghost" style="color:var(--coral-text)" data-a="delSet" data-e="${c.e}" data-s="${c.s}">${ICON.trash} Delete set</button></div>
+      <div class="small muted" style="text-align:center">Tip: swipe a set left to copy or delete it</div>`,"Set type");
   }else if(k==="when"){
     const A=S.active;const pad=n=>String(n).padStart(2,"0");const sd=new Date(A.start);
     h=sheetWrap(`<h2 style="margin:0;font-size:22px">When was this?</h2>
@@ -1142,6 +1156,18 @@ const ACT={
     ui.updTpl=false;S.active={user:S.me,name:t.name+(sh?" · Short":""),templateId:t.id,short:sh,start:Date.now(),entries:t.items.filter(i=>!sh||i.core).map(i=>({exId:i.exId,note:"",sets:newSets(S.me,i.exId,i.sets)}))};
     ui.tab="workout";ui.tplId=null;window.scrollTo(0,0)},
   startEmpty:()=>{S.active={user:S.me,name:"Workout",start:Date.now(),entries:[]};ui.picker={q:"",target:"active"};ui.sheet="picker"},
+  copySet:d=>{const en=S.active.entries[d.e];const i=+d.s;const src=en.sets[i];if(!src)return;
+    const vals={w:src.w,r:src.r,left:src.left,type:src.type};if(hasLR(src)){vals.rl=src.rl;vals.rr=src.rr}
+    const nx=en.sets[i+1];let at;
+    if(nx&&!nx.done&&nx.r===""&&!hasLR(nx)){Object.assign(nx,vals);at=i+1}
+    else{en.sets.splice(i+1,0,Object.assign({done:false},vals));at=i+1;if(ui.hold&&ui.hold.e===+d.e&&ui.hold.s>i)ui.hold.s++}
+    ui.swiped=null;ui.sheet=null;toast("Copied to the next set")},
+  delSet:d=>{const en=S.active.entries[d.e];const i=+d.s;const st=en.sets[i];if(!st)return;
+    en.sets.splice(i,1);ui.undoSet={e:+d.e,s:i,st,exId:en.exId};
+    if(ui.hold&&ui.hold.e===+d.e){if(ui.hold.s===i)ui.hold=null;else if(ui.hold.s>i)ui.hold.s--}
+    ui.swiped=null;ui.sheet=null;toast("Set deleted",{label:"Undo",a:"undoSet"})},
+  undoSet:()=>{const u=ui.undoSet;if(!u||!S.active)return;const en=S.active.entries[u.e];if(!en||en.exId!==u.exId)return;
+    en.sets.splice(Math.min(u.s,en.sets.length),0,u.st);ui.undoSet=null;$("#toast").hidden=true;toast("Set restored")},
   cycleType:d=>{ui.stCtx={e:+d.e,s:+d.s};ui.sheet="stype"},
   setType:d=>{const c=ui.stCtx;const st=S.active.entries[c.e].sets[c.s];const was=st.type;st.type=d.v;
     if(d.v==="W"||d.v==="H")st.left="";if((was==="H")!==(d.v==="H")&&!st.done)st.r="";ui.sheet=null},
@@ -1310,6 +1336,27 @@ const ACT={
     const a=document.createElement("a");a.href=URL.createObjectURL(file);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);done();return false},
   finishOnboard:()=>{const n=(U("d").name||"").trim();if(!n){toast("Add your name first");const i=$("#ob-name");i&&i.focus();return}S.onboarded=true;ui.tab="workout";toast(`Welcome, ${n}`)}
 };
+const SW_W=150;let swT=null;
+document.addEventListener("touchstart",ev=>{
+  const row=ev.target.closest(".swipe");
+  if(ui.swiped&&(!row||ui.swiped!==row.dataset.e+"-"+row.dataset.s)&&!ev.target.closest(".swipe-acts")){ui.swiped=null;render();}
+  if(!row||ev.touches.length!==1)return;const t=ev.touches[0];
+  swT={row,x:t.clientX,y:t.clientY,dx:0,dir:null,open:row.classList.contains("open"),g:row.querySelector(".sgrid")};
+},{passive:true});
+document.addEventListener("touchmove",ev=>{
+  if(!swT)return;const t=ev.touches[0];const dx=t.clientX-swT.x,dy=t.clientY-swT.y;
+  if(!swT.dir){if(Math.abs(dx)<8&&Math.abs(dy)<8)return;swT.dir=Math.abs(dx)>Math.abs(dy)*1.2?"h":"v"}
+  if(swT.dir!=="h")return;
+  const base=swT.open?-SW_W:0;const x=Math.max(-SW_W-24,Math.min(0,base+dx));swT.dx=dx;
+  swT.g.style.transition="none";swT.g.style.transform=`translateX(${x}px)`;
+  if(document.activeElement&&swT.row.contains(document.activeElement))document.activeElement.blur();
+},{passive:true});
+document.addEventListener("touchend",()=>{
+  if(!swT)return;const s=swT;swT=null;if(s.dir!=="h")return;
+  const end=(s.open?-SW_W:0)+s.dx;const key=s.row.dataset.e+"-"+s.row.dataset.s;
+  s.g.style.transition="";s.g.style.transform="";
+  ui.swiped=end<-SW_W/2?key:null;render();
+},{passive:true});
 document.addEventListener("click",ev=>{
   const el=ev.target.closest("[data-a]");if(!el)return;
   const fn=ACT[el.dataset.a];if(!fn)return;
@@ -1355,12 +1402,12 @@ document.addEventListener("focusin",ev=>{
     const old=$("#plate-hint");if(old&&old.dataset.for===el.id)return;if(old)old.remove();
     const d=document.createElement("div");d.id="plate-hint";d.className="plate-hint";d.dataset.for=el.id;
     d.innerHTML=`<span>Load this one with plates?</span><span class="row" style="gap:4px"><button class="chip" data-a="setPlates" data-id="${ex.id}" data-v="0" data-e="${el.dataset.e}" data-s="${el.dataset.s}">Stack</button><button class="chip" data-a="setPlates" data-id="${ex.id}" data-v="1" data-e="${el.dataset.e}" data-s="${el.dataset.s}">Plates</button></span>`;
-    el.closest(".sgrid").after(d);return;
+    (el.closest(".swipe")||el.closest(".sgrid")).after(d);return;
   }
   const old=$("#plate-hint");if(old&&old.dataset.for===el.id)return;if(old)old.remove();
   const d=document.createElement("div");d.id="plate-hint";d.className="plate-hint";d.dataset.for=el.id;
   d.innerHTML=`<span id="ph-text">${esc(plateHint(ex,en.sets[el.dataset.s].w))}</span><button class="chip" data-a="openPlates" data-e="${el.dataset.e}" data-s="${el.dataset.s}">Plates</button>`;
-  el.closest(".sgrid").after(d);
+  (el.closest(".swipe")||el.closest(".sgrid")).after(d);
 });
 document.addEventListener("focusout",ev=>{
   if(!(ev.target.dataset&&ev.target.dataset.f==="w"))return;
